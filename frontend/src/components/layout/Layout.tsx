@@ -12,23 +12,73 @@ import {
     Factory,
     Layers,
     FileText,
-    LogOut
+    LogOut,
+    Shield,
+    ShoppingBag
 } from 'lucide-react';
+import type { UserRole } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export const Layout = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { signOut, user } = useAuthStore();
 
-    const navItems = [
-        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/productos', icon: Package, label: 'Productos' },
-        { to: '/produccion', icon: Factory, label: 'Producción' },
-        { to: '/inventario', icon: Layers, label: 'Inventario' },
-        { to: '/ventas', icon: ShoppingCart, label: 'Ventas' },
-        { to: '/clientes', icon: Users, label: 'Clientes' },
-        { to: '/compras', icon: FileText, label: 'Compras' },
+    // Mobile Menu Items (Synced with AdminSidebar)
+    const allNavItems = [
+        {
+            to: '/admin/dashboard',
+            icon: LayoutDashboard,
+            label: 'Dashboard',
+            allowed: ['owner', 'admin', 'ventas', 'produccion', 'inventario']
+        },
+        {
+            to: '/admin/productos',
+            icon: Package,
+            label: 'Productos',
+            allowed: ['owner', 'admin', 'ventas', 'produccion']
+        },
+        {
+            to: '/admin/produccion',
+            icon: Factory,
+            label: 'Producción',
+            allowed: ['owner', 'admin', 'produccion']
+        },
+        {
+            to: '/admin/inventario',
+            icon: Layers,
+            label: 'Inventario',
+            allowed: ['owner', 'admin', 'inventario', 'produccion']
+        },
+        {
+            to: '/admin/costos',
+            icon: FileText,
+            label: 'Costos',
+            allowed: ['owner', 'admin', 'contador']
+        },
+        {
+            to: '/admin/ventas',
+            icon: ShoppingCart,
+            label: 'Ventas',
+            allowed: ['owner', 'admin', 'ventas']
+        },
+        {
+            to: '/admin/proveedores',
+            icon: Users,
+            label: 'Proveedores',
+            allowed: ['owner', 'admin', 'inventario']
+        },
+        {
+            to: '/admin/equipo',
+            icon: Shield,
+            label: 'Equipo',
+            allowed: ['owner', 'admin']
+        },
     ];
+
+    const visibleItems = allNavItems.filter(item =>
+        // If no user, hide all. If user has any of the allowed roles, show.
+        user?.roles?.some((userRole: UserRole) => item.allowed.includes(userRole))
+    );
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -60,7 +110,7 @@ export const Layout = () => {
                         </div>
 
                         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                            {navItems.map((item) => (
+                            {visibleItems.map((item) => (
                                 <NavLink
                                     key={item.to}
                                     to={item.to}
@@ -78,6 +128,14 @@ export const Layout = () => {
                                     {item.label}
                                 </NavLink>
                             ))}
+                            <a
+                                href="/"
+                                target="_blank"
+                                className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors mt-4 border-t border-gray-100"
+                            >
+                                <ShoppingBag className="h-5 w-5" />
+                                Ir a la Tienda
+                            </a>
                         </nav>
 
                         <div className="p-4 border-t">
@@ -87,7 +145,9 @@ export const Layout = () => {
                                 </div>
                                 <div className="text-sm">
                                     <p className="font-medium text-gray-900">{user?.nombre || 'Usuario'}</p>
-                                    <p className="text-xs text-gray-500 capitalize">{user?.rol || 'Rol'}</p>
+                                    <p className="text-xs text-gray-500 capitalize truncate max-w-[120px]">
+                                        {user?.roles?.slice(0, 2).join(', ') || 'Rol'}
+                                    </p>
                                 </div>
                             </div>
                             <button
