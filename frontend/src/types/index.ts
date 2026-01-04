@@ -57,6 +57,7 @@ export interface Producto {
     descripcion_interna?: string;
     categoria_id?: string;
     tipo_prenda?: string;
+    proceso_produccion_id?: string; // FK to procesos_templates
     genero?: string;
     tela_principal?: string;
     color_base?: string;
@@ -211,8 +212,10 @@ export interface LoteProduccion {
     modelo_corte?: string;
     cantidad_total: number;
     cantidad_real?: number;
-    estado: 'planificado' | 'corte' | 'taller' | 'terminado';
+    estado: 'planificado' | 'corte' | 'taller' | 'terminado' | string; // Allow dynamic states
     progreso_porcentaje: number;
+    proceso_snapshot?: any; // JSONB
+    paso_actual_index?: number;
     fecha_inicio?: string;
     fecha_fin?: string;
     creado_en: string;

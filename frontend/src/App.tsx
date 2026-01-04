@@ -4,6 +4,7 @@ import { Layout } from './components/layout/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Equipo } from './pages/admin/Equipo';
+import { ProcessManager } from './pages/admin/ProcessManager';
 import { useAuthStore } from './store/useAuthStore';
 import { supabase } from './lib/supabase';
 import { PublicLayout } from './components/layout/PublicLayout';
@@ -99,6 +100,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="productos" element={<AdminProducts />} />
             <Route path="produccion" element={<Produccion />} />
+            <Route path="procesos" element={<ProcessManager />} />
             <Route path="inventario" element={<Inventario />} />
             <Route path="ventas" element={<Ventas />} />
             <Route path="proveedores" element={<Proveedores />} />
