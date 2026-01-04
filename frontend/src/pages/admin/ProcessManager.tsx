@@ -18,7 +18,7 @@ interface Proceso {
 
 export const ProcessManager = () => {
     const [procesos, setProcesos] = useState<Proceso[]>([]);
-    // const [loading, setLoading] = useState(true); // Unused
+    const [loading, setLoading] = useState(true);
     const [selectedProceso, setSelectedProceso] = useState<Proceso | null>(null);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -142,6 +142,8 @@ export const ProcessManager = () => {
             alert('Error al guardar: ' + error.message);
         }
     };
+
+    if (loading) return <div className="p-8 text-center">Cargando procesos...</div>;
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
