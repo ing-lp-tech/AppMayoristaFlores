@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { LoteProduccion, Producto } from '../../types';
-import { Plus, ChevronsRight, CheckCircle, Scissors, Package, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle, Package, Trash2, X, Settings, Scissors } from 'lucide-react';
 import clsx from 'clsx';
 
 export const Produccion = () => {
+    const navigate = useNavigate();
     const [lotes, setLotes] = useState<LoteProduccion[]>([]);
     const [productos, setProductos] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(true);
@@ -12,14 +14,19 @@ export const Produccion = () => {
     const [showRealQtyModal, setShowRealQtyModal] = useState<{ id: string, name: string } | null>(null);
     const [realQty, setRealQty] = useState<number>(0);
 
+    // Nuevo estado para el "Stepper"
+    const [selectedBatch, setSelectedBatch] = useState<LoteProduccion | null>(null);
+    const [procesos, setProcesos] = useState<any[]>([]); // Store processes with steps
+
     // New Batch State
-    const [newBatch, setNewBatch] = useState<Partial<LoteProduccion>>({
+    const [newBatch, setNewBatch] = useState<Partial<LoteProduccion> & { selectedProcessId?: string }>({
         codigo: '',
         producto_id: '',
         modelo_corte: '',
         detalle_rollos: [{ color: '', metros: 0 }],
         estado: 'planificado',
-        fecha_inicio: new Date().toISOString().split('T')[0]
+        fecha_inicio: new Date().toISOString().split('T')[0],
+        selectedProcessId: ''
     });
 
     const [rollos, setRollos] = useState<any[]>([]);
@@ -52,20 +59,23 @@ export const Produccion = () => {
 
     const fetchData = async () => {
         try {
-            const [lotesRes, prodRes, rollosRes] = await Promise.all([
+            const [lotesRes, prodRes, rollosRes, procesosRes] = await Promise.all([
                 supabase.from('lotes_produccion').select('*, producto:productos(nombre, codigo)').order('creado_en', { ascending: false }),
-                supabase.from('productos').select('id, nombre, codigo').order('nombre', { ascending: true }),
-                supabase.from('rollos_tela').select('*').eq('estado', 'disponible')
+                supabase.from('productos').select('id, nombre, codigo, proceso_produccion_id').order('nombre', { ascending: true }),
+                supabase.from('rollos_tela').select('*').eq('estado', 'disponible'),
+                supabase.from('procesos_templates').select('*, pasos:pasos_proceso(*)')
             ]);
 
             setLotes(lotesRes.data || []);
             // @ts-ignore
             setProductos(prodRes.data || []);
-            const rolls = rollosRes.data || [];
-            setRollos(rolls);
+            setRollos(rollosRes.data || []);
+            // @ts-ignore
+            setProcesos(procesosRes.data || []);
 
             // Extract unique types
-            const types = Array.from(new Set(rolls.map((r: any) => r.tipo_tela)));
+            const rules = rollosRes.data || [];
+            const types = Array.from(new Set(rules.map((r: any) => r.tipo_tela)));
             setTypeOptions(types);
         } catch (error) {
             console.error(error);
@@ -112,15 +122,50 @@ export const Produccion = () => {
     const handleCreateBatch = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // 1. Create Batch
+            // 1. Prepare Batch Data with Snapshot
+            let snapshot = null;
+            let firstState = 'planificado';
+
+            const selectedProd = productos.find(p => p.id === newBatch.producto_id);
+
+            if (selectedProd?.proceso_produccion_id) {
+                // Fetch the dynamic process steps
+                const { data: steps } = await supabase
+                    .from('pasos_proceso')
+                    .select('*')
+                    .eq('proceso_id', selectedProd.proceso_produccion_id)
+                    .order('orden', { ascending: true });
+
+                if (steps && steps.length > 0) {
+                    snapshot = { pasos: steps };
+                    firstState = steps[0].nombre;
+                }
+            }
+
+            // If no custom process, use default snapshot for consistency
+            if (!snapshot) {
+                snapshot = {
+                    pasos: [
+                        { nombre: 'planificado', orden: 0, requiere_input: false },
+                        { nombre: 'corte', orden: 1, requiere_input: false },
+                        { nombre: 'taller', orden: 2, requiere_input: false },
+                        { nombre: 'terminado', orden: 3, requiere_input: true }
+                    ]
+                };
+            }
+
+            // 2. Create Batch
             const { data: batchData, error: batchError } = await supabase.from('lotes_produccion').insert([{
                 ...newBatch,
-                cantidad_total: 0
+                cantidad_total: 0,
+                estado: firstState,
+                proceso_snapshot: snapshot,
+                paso_actual_index: 0
             }]).select().single();
 
             if (batchError) throw batchError;
 
-            // 2. Consume Rolls from Inventory (Update Stock)
+            // 3. Consume Rolls from Inventory (Update Stock)
             const rollsToConsume = newBatch.detalle_rollos
                 ?.filter(r => r.rollo_id && r.metros > 0)
                 .map(r => ({
@@ -142,7 +187,17 @@ export const Produccion = () => {
 
             fetchData();
             setIsModalOpen(false);
-            setNewBatch({ codigo: '', producto_id: '', modelo_corte: '', detalle_rollos: [{ color: '', metros: 0 }], estado: 'planificado', fecha_inicio: new Date().toISOString().split('T')[0] });
+            fetchData();
+            setIsModalOpen(false);
+            setNewBatch({
+                codigo: '',
+                producto_id: '',
+                modelo_corte: '',
+                detalle_rollos: [{ color: '', metros: 0 }],
+                estado: 'planificado',
+                fecha_inicio: new Date().toISOString().split('T')[0],
+                selectedProcessId: ''
+            });
         } catch (error: any) {
             alert('Error: ' + error.message);
         }
@@ -176,24 +231,52 @@ export const Produccion = () => {
         }
     };
 
-    const updateStatus = async (id: string, currentStatus: string) => {
-        const flow = ['planificado', 'corte', 'taller', 'terminado'];
-        const currentIndex = flow.indexOf(currentStatus);
+    const updateStatus = async (id: string, targetStatus: string) => {
+        const lote = lotes.find(l => l.id === id);
+        if (!lote) return;
 
-        if (currentStatus === 'taller') {
-            const lote = lotes.find(l => l.id === id);
-            setShowRealQtyModal({ id, name: lote?.producto?.nombre || 'Producto' });
+        // Get Steps
+        const steps = lote.proceso_snapshot?.pasos || [
+            { nombre: 'planificado' }, { nombre: 'corte' }, { nombre: 'taller' }, { nombre: 'terminado', requiere_input: true }
+        ];
+
+        const targetIndex = steps.findIndex((s: any) => s.nombre === targetStatus);
+        const targetStep = steps[targetIndex];
+        const isLastStep = targetIndex === steps.length - 1;
+        const requiresInput = targetStep?.requiere_input || (targetStatus === 'terminado'); // Fallback for old
+
+        // 1. Check if we need Real Quantity
+        if (requiresInput) {
+            setShowRealQtyModal({ id, name: lote.producto?.nombre || 'Producto' });
+            setSelectedBatch(null);
             return;
         }
 
-        const nextStatus = flow[currentIndex + 1];
+        // 2. Calculate Progress
+        // Standard logic: 0% at start, 100% at end. 
+        // Steps: 4. Index 0 = 0%, Index 1 = 33%, Index 2 = 66%, Index 3 = 100%.
+        // Formula: (targetIndex / (totalSteps - 1)) * 100
+        const totalSteps = steps.length;
+        const percentage = totalSteps > 1 ? Math.round((targetIndex / (totalSteps - 1)) * 100) : 0;
+
         try {
             const { error } = await supabase.from('lotes_produccion').update({
-                estado: nextStatus,
-                progreso_porcentaje: (currentIndex + 1) * 25
+                estado: targetStatus,
+                paso_actual_index: targetIndex,
+                progreso_porcentaje: percentage
             }).eq('id', id);
 
             if (error) throw error;
+
+            if (selectedBatch && selectedBatch.id === id) {
+                setSelectedBatch({
+                    ...selectedBatch,
+                    estado: targetStatus,
+                    paso_actual_index: targetIndex,
+                    progreso_porcentaje: percentage
+                });
+            }
+
             fetchData();
         } catch (error: any) {
             alert('Error: ' + error.message);
@@ -209,19 +292,31 @@ export const Produccion = () => {
                     <h1 className="text-2xl font-bold text-gray-900 font-serif">Producción</h1>
                     <p className="text-gray-500">Gestión de lotes y tendido de tela</p>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 shadow-sm transition-all active:scale-95"
-                >
-                    <Plus className="h-5 w-5" /> Iniciar Lote
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => navigate('/admin/procesos')}
+                        className="bg-white text-gray-700 border border-gray-200 px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-50 shadow-sm transition-all active:scale-95 font-medium"
+                    >
+                        <Settings className="h-5 w-5" /> Gestionar Procesos
+                    </button>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 shadow-sm transition-all active:scale-95 font-medium"
+                    >
+                        <Plus className="h-5 w-5" /> Iniciar Lote
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {lotes.map((lote: any) => (
-                    <div key={lote.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                        <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center">
-                            <span className="font-mono font-bold text-indigo-600 bg-white px-2 py-1 rounded-md border text-sm">{lote.codigo}</span>
+                    <div
+                        key={lote.id}
+                        onClick={() => setSelectedBatch(lote)}
+                        className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
+                    >
+                        <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center group-hover:bg-indigo-50/30 transition-colors">
+                            <span className="font-mono font-bold text-indigo-600 bg-white px-2 py-1 rounded-md border text-sm shadow-sm">{lote.codigo}</span>
                             <span className={clsx(
                                 "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm",
                                 lote.estado === 'planificado' && "bg-gray-100 text-gray-600 border border-gray-200",
@@ -251,34 +346,118 @@ export const Produccion = () => {
 
                             <div className="w-full bg-gray-100 rounded-full h-2">
                                 <div
-                                    className="bg-indigo-600 h-2 rounded-full transition-all duration-700"
-                                    style={{ width: `${lote.progreso_porcentaje || 0}%` }}
+                                    className={clsx(
+                                        "h-2 rounded-full transition-all duration-700",
+                                        lote.estado === 'terminado' ? "bg-emerald-500" : "bg-indigo-600"
+                                    )}
+                                    // Si es terminado 100%, sino usamos el calculado o un default visual
+                                    style={{ width: lote.estado === 'terminado' ? '100%' : `${lote.progreso_porcentaje || 10}%` }}
                                 ></div>
                             </div>
 
-                            <div className="flex justify-between items-center text-xs text-gray-500 italic">
-                                <span>Iniciado: {lote.fecha_inicio}</span>
+                            <div className="flex justify-between items-center text-xs text-gray-400 italic">
+                                <span>Click para gestionar etapas</span>
                             </div>
-
-                            {/* Actions */}
-                            {lote.estado !== 'terminado' && (
-                                <button
-                                    onClick={() => updateStatus(lote.id, lote.estado)}
-                                    className="w-full mt-2 flex justify-center items-center gap-2 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors font-semibold text-sm shadow-sm active:scale-95"
-                                >
-                                    {lote.estado === 'taller' ? 'Completar Cantidad & Finalizar' : 'Avanzar Etapa'}
-                                    <ChevronsRight className="h-4 w-4" />
-                                </button>
-                            )}
-                            {lote.estado === 'terminado' && (
-                                <div className="w-full mt-2 flex justify-center items-center gap-2 py-2.5 text-emerald-700 font-bold bg-emerald-50 rounded-xl border border-emerald-100 text-sm">
-                                    <CheckCircle className="h-4 w-4" /> Finalizado con éxito
-                                </div>
-                            )}
                         </div>
                     </div>
                 ))}
             </div>
+
+            {/* Modal: Stepper Management */}
+            {selectedBatch && (
+                <div
+                    className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedBatch(null); }}
+                >
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h2 className="text-2xl font-black text-gray-900">Control de Etapas</h2>
+                                <p className="text-sm text-gray-500 font-bold">{selectedBatch.producto?.nombre} - <span className="text-indigo-600">{selectedBatch.codigo}</span></p>
+                            </div>
+                            <button onClick={() => setSelectedBatch(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
+                                <X className="h-6 w-6" /> {/* Make sure X is imported if not already */}
+                            </button>
+                        </div>
+
+                        <div className="p-10">
+                            {/* Stepper UI */}
+                            <div className="relative flex justify-between items-center mb-12">
+                                {/* Connecting Line */}
+                                <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -z-0 rounded-full"></div>
+
+                                {/* Steps */}
+                                {/* Steps */}
+                                {(() => {
+                                    // Determine steps from snapshot or legacy fallback
+                                    const steps = selectedBatch.proceso_snapshot?.pasos || [
+                                        { nombre: 'planificado', orden: 0 },
+                                        { nombre: 'corte', orden: 1 },
+                                        { nombre: 'taller', orden: 2 },
+                                        { nombre: 'terminado', orden: 3, requiere_input: true }
+                                    ];
+
+                                    // Find current index
+                                    // We can use paso_actual_index if available, or find by name
+                                    let currentIdx = selectedBatch.paso_actual_index ?? -1;
+                                    if (currentIdx === -1) {
+                                        currentIdx = steps.findIndex((s: any) => s.nombre.toLowerCase() === (selectedBatch.estado || '').toLowerCase());
+                                    }
+                                    if (currentIdx === -1 && selectedBatch.estado) currentIdx = 0; // Fallback
+
+                                    return steps.map((step: any, idx: number) => {
+                                        const isCompleted = idx <= currentIdx;
+                                        const isCurrent = idx === currentIdx;
+                                        const isLast = idx === steps.length - 1;
+
+                                        return (
+                                            <button
+                                                key={idx}
+                                                // Only allow clicking if not already finished (or allow reverting?)
+                                                // Let's allow clicking any previous or next step for flexibility
+                                                onClick={() => updateStatus(selectedBatch.id, step.nombre)}
+                                                className="relative z-10 flex flex-col items-center gap-3 group"
+                                            >
+                                                <div className={clsx(
+                                                    "w-12 h-12 rounded-2xl flex items-center justify-center border-4 transition-all duration-300 shadow-sm",
+                                                    isCurrent ? "bg-indigo-600 border-indigo-100 text-white scale-110 shadow-indigo-200" :
+                                                        isCompleted ? "bg-indigo-100 border-indigo-50 text-indigo-600" :
+                                                            "bg-white border-gray-100 text-gray-300 group-hover:border-gray-200"
+                                                )}>
+                                                    {/* Dynamic Icons based on name or index? */}
+                                                    {/* Simple logic for standard names, generic for others */}
+                                                    {step.nombre.toLowerCase().includes('planif') && <Package className="h-5 w-5" />}
+                                                    {step.nombre.toLowerCase().includes('corte') && <Scissors className="h-5 w-5" />}
+                                                    {step.nombre.toLowerCase().includes('taller') && <div className="font-black text-xs">MAQ</div>}
+                                                    {step.nombre.toLowerCase().includes('terminado') && <CheckCircle className="h-5 w-5" />}
+                                                    {/* Generic Icon for custom steps */}
+                                                    {!['planificado', 'corte', 'taller', 'terminado'].some(k => step.nombre.toLowerCase().includes(k)) && (
+                                                        <div className="font-black text-xs">{idx + 1}</div>
+                                                    )}
+                                                </div>
+                                                <span className={clsx(
+                                                    "text-xs font-black uppercase tracking-wider transition-colors max-w-[80px] text-center truncate",
+                                                    isCurrent ? "text-indigo-600" :
+                                                        isCompleted ? "text-indigo-400" : "text-gray-300"
+                                                )} title={step.nombre}>
+                                                    {step.nombre}
+                                                </span>
+                                            </button>
+                                        );
+                                    });
+                                })()}
+                            </div>
+
+                            <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center">
+                                <p className="text-blue-800 text-sm font-medium">
+                                    💡 Haz click en cualquier etapa para mover el lote a ese estado.
+                                    <br /><span className="text-xs opacity-70">Si seleccionas "Terminado", se te pedirá la cantidad final producida.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal: Iniciar Lote */}
             {isModalOpen && (
@@ -324,6 +503,25 @@ export const Produccion = () => {
                                         <option key={p.id} value={p.id}>{p.nombre}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            {/* Selector de Proceso */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Proceso / Receta</label>
+                                <select
+                                    className="w-full border-gray-200 border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-gray-700"
+                                    // @ts-ignore
+                                    value={newBatch.selectedProcessId || ''}
+                                    onChange={e => setNewBatch({ ...newBatch, selectedProcessId: e.target.value })}
+                                >
+                                    <option value="">Proceso Estándar (Por Defecto)</option>
+                                    {procesos.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{p.nombre} ({p.pasos?.length || 0} pasos)</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                                    * Se seleccionó automáticamente el proceso del producto, pero puedes cambiarlo aquí.
+                                </p>
                             </div>
 
                             <div className="space-y-3">

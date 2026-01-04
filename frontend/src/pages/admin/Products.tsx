@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon } from 'lucide-react';
 import { productService, categoryService } from '../../services/productService';
+import { supabase } from '../../lib/supabase';
 import type { Producto, ProductoTalla, Categoria } from '../../types';
 
 export const AdminProducts = () => {
     const [products, setProducts] = useState<(Producto & { producto_talles: ProductoTalla[] })[]>([]);
     const [categories, setCategories] = useState<Categoria[]>([]);
+    const [procesos, setProcesos] = useState<any[]>([]); // Add type later if needed
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,6 +18,7 @@ export const AdminProducts = () => {
         nombre: '',
         codigo: '',
         categoria_id: '',
+        proceso_produccion_id: '',
         descripcion_publica: '',
         precio_minorista: 0,
         precio_mayorista_curva: 0,
@@ -41,13 +44,15 @@ export const AdminProducts = () => {
         setLoading(true);
         try {
             console.log("Fetching products and categories...");
-            const [productsData, categoriesData] = await Promise.all([
+            const [productsData, categoriesData, procesosData] = await Promise.all([
                 productService.getProducts(false),
-                categoryService.getCategories()
+                categoryService.getCategories(),
+                supabase.from('procesos_templates').select('*').then(res => res.data || [])
             ]);
             console.log("Categories fetched:", categoriesData);
             setProducts(productsData);
             setCategories(categoriesData);
+            setProcesos(procesosData);
         } catch (error) {
             console.error('Error loading admin data:', error);
         } finally {
@@ -60,6 +65,7 @@ export const AdminProducts = () => {
             nombre: '',
             codigo: '',
             categoria_id: categories[0]?.id || '',
+            proceso_produccion_id: '',
             descripcion_publica: '',
             precio_minorista: 0,
             precio_mayorista_curva: 0,
@@ -133,7 +139,8 @@ export const AdminProducts = () => {
     const handleEdit = (product: Producto & { producto_talles: ProductoTalla[] }) => {
         setFormData({
             ...product,
-            categoria_id: product.categoria_id || ''
+            categoria_id: product.categoria_id || '',
+            proceso_produccion_id: product.proceso_produccion_id || ''
         });
 
         // Sort sizes by order before setting form
@@ -163,7 +170,8 @@ export const AdminProducts = () => {
         if (!window.confirm(`¿Quieres crear una copia de "${product.nombre}"?`)) return;
 
         // Mostrar estado de carga (opcional, podrías usar un toast)
-        const originalText = document.getElementById(`dup-btn-${product.id}`)?.innerText;
+        // Mostrar estado de carga (opcional, podrías usar un toast)
+        // const originalText = document.getElementById(`dup-btn-${product.id}`)?.innerText;
 
         try {
             // AQUI DEBES PONER TU URL REAL DE VERCEL BACKEND
@@ -407,6 +415,20 @@ export const AdminProducts = () => {
                                                         />
                                                     </>
                                                 )}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Proceso de Producción</label>
+                                                <select
+                                                    className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-bold"
+                                                    value={formData.proceso_produccion_id || ''}
+                                                    onChange={e => setFormData({ ...formData, proceso_produccion_id: e.target.value })}
+                                                >
+                                                    <option value="">Proceso Estándar (Default)</option>
+                                                    {procesos.map(p => (
+                                                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
 
