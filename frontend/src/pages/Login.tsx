@@ -101,8 +101,18 @@ export const Login = () => {
                     </div>
 
                     {!import.meta.env.VITE_SUPABASE_URL.includes('placeholder') && (
-                        <div className="mt-2 text-center text-xs text-green-600">
-                            ✓ Sistema Conectado
+                        <div className="mt-6 text-center space-y-2">
+                            <div className="text-xs text-green-600 font-medium">✓ Servidor Operativo</div>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    await supabase.auth.signOut();
+                                    window.location.reload();
+                                }}
+                                className="text-xs text-red-400 hover:text-red-500 underline"
+                            >
+                                ¿Problemas? Forzar cierre de sesión
+                            </button>
                         </div>
                     )}
                 </form>
