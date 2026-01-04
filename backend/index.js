@@ -74,7 +74,79 @@ app.get('/api/lotes/qr', async (req, res) => {
     }
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en el puerto ${PORT}`);
+// ==========================================
+// CONFIGURACIÓN SUPABASE (Backend)
+// ==========================================
+const { createClient } = require('@supabase/supabase-js');
+
+// Estas variables deben configurarse en el panel de Vercel
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // ¡Cuidado! Usar la Service Role Key, no la Anon Key
+
+const supabase = (supabaseUrl && supabaseKey)
+    ? createClient(supabaseUrl, supabaseKey)
+    : null;
+
+// ==========================================
+// FEATURE: Duplicador de Productos
+// ==========================================
+app.post('/api/products/duplicate', async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).json({ error: 'Supabase no está configurado en el backend.' });
+        }
+
+        const { productId, newName } = req.body;
+
+        if (!productId) return res.status(400).json({ error: 'Falta productId' });
+
+        // 1. Obtener el producto original
+        const { data: original, error: fetchError } = await supabase
+            .from('productos')
+            .select('*')
+            .eq('id', productId)
+            .single();
+
+        if (fetchError || !original) {
+            return res.status(404).json({ error: 'Producto no encontrado' });
+        }
+
+        // 2. Preparar el nuevo objeto (Limpiamos ID y fechas)
+        const { id, creado_en, actualizado_en, ...productData } = original;
+
+        const newProductData = {
+            ...productData,
+            nombre: newName || `${original.nombre} (Copia)`,
+            codigo: `${original.codigo}-COPY-${Date.now().toString().slice(-4)}`, // Generar código único temporal
+            stock_total: 0, // Resetear stock por seguridad
+            slug: null // Dejar que la DB o el frontend genere uno nuevo si es necesario
+        };
+
+        // 3. Insertar el nuevo producto
+        const { data: newProduct, error: insertError } = await supabase
+            .from('productos')
+            .insert(newProductData)
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error('Error insertando copia:', insertError);
+            return res.status(500).json({ error: 'Error creando la copia del producto' });
+        }
+
+        // 4. (Opcional) Aquí deberíamos copiar también los "talles" (ProductoTalla)
+        // consultando la tabla 'producto_talles' y re-insertándolos con el nuevo ID.
+        // Por simplicidad en este ejemplo, solo copiamos el producto base.
+
+        res.json({
+            success: true,
+            message: 'Producto duplicado correctamente',
+            originalId: productId,
+            newProduct: newProduct
+        });
+
+    } catch (error) {
+        console.error('Error duplicando:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
 });

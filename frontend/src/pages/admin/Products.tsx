@@ -156,6 +156,44 @@ export const AdminProducts = () => {
         }
     };
 
+    // ==========================================
+    // NUEVA FUNCIÓN: DUPLICAR PRODUCTO
+    // ==========================================
+    const handleDuplicate = async (product: Producto) => {
+        if (!window.confirm(`¿Quieres crear una copia de "${product.nombre}"?`)) return;
+
+        // Mostrar estado de carga (opcional, podrías usar un toast)
+        const originalText = document.getElementById(`dup-btn-${product.id}`)?.innerText;
+
+        try {
+            // AQUI DEBES PONER TU URL REAL DE VERCEL BACKEND
+            // Ejemplo: https://app-mayorista-backend.vercel.app
+            const BACKEND_URL = "https://app-mayorista-flores-backend-7bkk.vercel.app";
+
+            const response = await fetch(`${BACKEND_URL}/api/products/duplicate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productId: product.id,
+                    newName: `${product.nombre} (Copia)`
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert("¡Producto clonado con éxito!");
+                loadInitialData(); // Recargamos la lista para que aparezca la copia
+            } else {
+                alert("Error: " + (data.error || "No se pudo duplicar"));
+            }
+
+        } catch (error) {
+            console.error("Error duplicando:", error);
+            alert("Error de conexión con el backend");
+        }
+    };
+
     const updateTalla = (index: number, field: keyof Omit<ProductoTalla, 'id' | 'producto_id'>, value: any) => {
         const newTalles = [...tallesForm];
         newTalles[index] = { ...newTalles[index], [field]: value };
@@ -275,6 +313,15 @@ export const AdminProducts = () => {
                                                     className="p-2.5 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-red-100"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
+                                                </button>
+                                                {/* BOTÓN DUPLICAR (Agregado) */}
+                                                <button
+                                                    id={`dup-btn-${product.id}`}
+                                                    onClick={() => handleDuplicate(product)}
+                                                    title="Duplicar Producto"
+                                                    className="p-2.5 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-green-100"
+                                                >
+                                                    <Copy className="h-4 w-4" />
                                                 </button>
                                             </div>
                                         </td>
@@ -605,4 +652,5 @@ export const AdminProducts = () => {
 };
 
 // Internal imports needed for the pricing section UI icons
-import { ShoppingBag } from 'lucide-react';
+// Internal imports needed for the pricing section UI icons
+import { ShoppingBag, Copy } from 'lucide-react'; // Agregamos 'Copy' aquí
