@@ -4,17 +4,18 @@
 
 export type UserRole = 'owner' | 'admin' | 'produccion' | 'ventas' | 'inventario' | 'contador' | 'repositor' | 'cortador' | 'doblador' | 'cliente';
 
-id: string;
-email: string;
-nombre: string;
-apellido ?: string;
-roles: UserRole[];
-rol ?: UserRole; // Added to support legacy/single-role usage
-telefono ?: string;
-departamento ?: string;
-activo: boolean;
-creado_en: string;
-ultimo_login ?: string;
+export interface UsuarioInterno {
+    id: string;
+    email: string;
+    nombre: string;
+    apellido?: string;
+    roles: UserRole[];
+    rol?: UserRole; // Added to support legacy/single-role usage
+    telefono?: string;
+    departamento?: string;
+    activo: boolean;
+    creado_en: string;
+    ultimo_login?: string;
 }
 
 export interface Cliente {
