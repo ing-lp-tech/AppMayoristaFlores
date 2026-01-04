@@ -242,7 +242,7 @@ export const Produccion = () => {
 
         const targetIndex = steps.findIndex((s: any) => s.nombre === targetStatus);
         const targetStep = steps[targetIndex];
-        const isLastStep = targetIndex === steps.length - 1;
+        // const isLastStep = targetIndex === steps.length - 1; // Unused
         const requiresInput = targetStep?.requiere_input || (targetStatus === 'terminado'); // Fallback for old
 
         // 1. Check if we need Real Quantity
@@ -408,7 +408,7 @@ export const Produccion = () => {
                                     return steps.map((step: any, idx: number) => {
                                         const isCompleted = idx <= currentIdx;
                                         const isCurrent = idx === currentIdx;
-                                        const isLast = idx === steps.length - 1;
+                                        // const isLast = idx === steps.length - 1; // Unused
 
                                         return (
                                             <button

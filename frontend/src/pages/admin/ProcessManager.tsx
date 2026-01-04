@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Save, Move, Layers } from 'lucide-react';
+import { Plus, Trash2, Save, Layers } from 'lucide-react';
 
 interface Paso {
     id?: string;
@@ -18,7 +18,7 @@ interface Proceso {
 
 export const ProcessManager = () => {
     const [procesos, setProcesos] = useState<Proceso[]>([]);
-    const [loading, setLoading] = useState(true);
+    // const [loading, setLoading] = useState(true); // Unused
     const [selectedProceso, setSelectedProceso] = useState<Proceso | null>(null);
     const [isEditing, setIsEditing] = useState(false);
 
