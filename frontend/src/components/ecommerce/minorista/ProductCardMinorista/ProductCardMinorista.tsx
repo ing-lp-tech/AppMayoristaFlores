@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ShoppingCart, Eye, Package } from 'lucide-react';
 import { ProductModal } from '../../shared/ProductModal';
 import type { Producto, ProductoTalla } from '../../../../types';
@@ -15,7 +15,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     // Verification: if product is not available for current mode, we might want to grey it out or hide it.
     // For now, let's just show it but highlight the relevant price.
     const isWholesale = mode === 'mayorista';
-    const activePrice = isWholesale ? product.precio_mayorista_curva : product.precio_minorista;
 
     // In wholesale mode, we show the unit price equivalent inside the curve for comparison
     const tallesCurvaCount = product.producto_talles.filter(t => t.incluido_curva).length;

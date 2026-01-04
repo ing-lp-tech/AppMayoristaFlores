@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, CreditCard, Truck, ChevronLeft, CheckCircle2, Loader2, AlertCircle, ShoppingCart } from 'lucide-react';
+import { ShoppingBag, CreditCard, Truck, ChevronLeft, CheckCircle2, Loader2, ShoppingCart } from 'lucide-react';
 import { useCartDualStore } from '../../store/cartDualStore';
 import { supabase } from '../../lib/supabase';
 
@@ -129,7 +129,7 @@ export const Checkout = () => {
                 if (itemsError) throw itemsError;
 
                 // Simple Stock Update (ideally this should be an RPC or Trigger)
-                for (const item of itemsMayorista) {
+                for (const _item of itemsMayorista) {
                     // Logic to decrement stock for each talle in the curve
                     // This is complex for a raw SQL loop, usually done via RPC
                 }
@@ -338,8 +338,8 @@ export const Checkout = () => {
                                     type="submit"
                                     disabled={loading}
                                     className={`w-full py-5 rounded-2xl font-black text-lg mt-10 flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-2xl relative overflow-hidden ${loading
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'
                                         }`}
                                 >
                                     {loading ? (

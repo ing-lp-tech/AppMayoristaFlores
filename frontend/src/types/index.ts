@@ -4,17 +4,17 @@
 
 export type UserRole = 'owner' | 'admin' | 'produccion' | 'ventas' | 'inventario' | 'contador' | 'repositor' | 'cortador' | 'doblador' | 'cliente';
 
-export interface UsuarioInterno {
-    id: string;
-    email: string;
-    nombre: string;
-    apellido?: string;
-    roles: UserRole[];
-    telefono?: string;
-    departamento?: string;
-    activo: boolean;
-    creado_en: string;
-    ultimo_login?: string;
+id: string;
+email: string;
+nombre: string;
+apellido ?: string;
+roles: UserRole[];
+rol ?: UserRole; // Added to support legacy/single-role usage
+telefono ?: string;
+departamento ?: string;
+activo: boolean;
+creado_en: string;
+ultimo_login ?: string;
 }
 
 export interface Cliente {
@@ -83,6 +83,10 @@ export interface Producto {
     disponible_minorista: boolean;
     disponible_mayorista: boolean;
     slug?: string;
+    especificaciones?: {
+        consumo_tela?: number;
+        insumos?: { id: string; cantidad: number }[];
+    };
     creado_en: string;
     actualizado_en: string;
 }
@@ -224,4 +228,20 @@ export interface ConfiguracionSistema {
     descuento_mayorista_porcentaje: number;
     requiere_cuit_mayorista: boolean;
     actualizado_en: string;
+}
+
+export type User = UsuarioInterno;
+
+export interface Venta {
+    id: string;
+    codigo: string;
+    cliente_info?: {
+        nombre: string;
+        email?: string;
+    };
+    items: any[];
+    total: number;
+    estado: string;
+    estado_pago: string;
+    fecha_venta: string;
 }

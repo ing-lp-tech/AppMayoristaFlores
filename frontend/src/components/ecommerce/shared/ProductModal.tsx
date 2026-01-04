@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, ShoppingCart, Check, Package, Info, AlertCircle } from 'lucide-react';
 import { useCartDualStore } from '../../../store/cartDualStore';
 import type { Producto, ProductoTalla } from '../../../types';
