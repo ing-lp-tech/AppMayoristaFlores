@@ -34,6 +34,9 @@ export const Produccion = () => {
     const [rollFilters, setRollFilters] = useState({ tipo: '', metros: '' });
     const [typeOptions, setTypeOptions] = useState<string[]>([]);
 
+    // Matrix State: { [Color]: { [TalleId]: Quantity } }
+    const [cortePlan, setCortePlan] = useState<Record<string, Record<string, number>>>({});
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -60,8 +63,8 @@ export const Produccion = () => {
     const fetchData = async () => {
         try {
             const [lotesRes, prodRes, rollosRes, procesosRes] = await Promise.all([
-                supabase.from('lotes_produccion').select('*, producto:productos(nombre, codigo)').order('creado_en', { ascending: false }),
-                supabase.from('productos').select('id, nombre, codigo, proceso_produccion_id').order('nombre', { ascending: true }),
+                supabase.from('lotes_produccion').select('*, producto:productos(nombre, codigo, producto_talles(*))').order('creado_en', { ascending: false }),
+                supabase.from('productos').select('id, nombre, codigo, proceso_produccion_id, producto_talles(*)').order('nombre', { ascending: true }),
                 supabase.from('rollos_tela').select('*').eq('estado', 'disponible'),
                 supabase.from('procesos_templates').select('*, pasos:pasos_proceso(*)')
             ]);
@@ -312,7 +315,10 @@ export const Produccion = () => {
                 {lotes.map((lote: any) => (
                     <div
                         key={lote.id}
-                        onClick={() => setSelectedBatch(lote)}
+                        onClick={() => {
+                            setSelectedBatch(lote);
+                            setCortePlan(lote.tallas_distribucion || {});
+                        }}
                         className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
                     >
                         <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center group-hover:bg-indigo-50/30 transition-colors">
@@ -448,12 +454,135 @@ export const Produccion = () => {
                                 })()}
                             </div>
 
+
                             <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center">
                                 <p className="text-blue-800 text-sm font-medium">
                                     💡 Haz click en cualquier etapa para mover el lote a ese estado.
                                     <br /><span className="text-xs opacity-70">Si seleccionas "Terminado", se te pedirá la cantidad final producida.</span>
                                 </p>
                             </div>
+
+                            {/* PLANILLA DE CORTE (EDIT MODE) */}
+                            {(() => {
+                                // If the batch has detailing of rolls, show the matrix
+                                // Wait, we need product sizes. The batch has selectedBatch.producto which includes producto_talles
+                                // But only if we typed it correctly and fetched it.
+                                // In fetchData we select '*, producto:productos(*, producto_talles(*))'
+                                // So selectedBatch.producto should have producto_talles.
+                                const prod = selectedBatch.producto as any; // Cast to access full details if TS complains
+                                if (!prod || !prod.producto_talles) return null;
+
+                                const colors = Array.from(new Set(selectedBatch.detalle_rollos?.map(r => r.color || 'Sin Color') || [])).filter(Boolean);
+                                const sizes = prod.producto_talles.sort((a: any, b: any) => a.orden - b.orden);
+
+                                if (colors.length === 0) return null;
+
+                                // Helper
+                                const handleMatrixChange = (color: string, talleId: string, qty: number) => {
+                                    const nextPlan = { ...cortePlan };
+                                    if (!nextPlan[color]) nextPlan[color] = {};
+                                    nextPlan[color][talleId] = qty;
+                                    setCortePlan(nextPlan);
+                                };
+                                const cellValue = (color: string, talleId: string) => cortePlan[color]?.[talleId] || 0;
+
+                                const totalMatrix = Object.values(cortePlan).reduce((acc, row) =>
+                                    acc + Object.values(row).reduce((s, q) => s + q, 0), 0
+                                );
+
+                                const saveMatrix = async () => {
+                                    try {
+                                        const { error } = await supabase
+                                            .from('lotes_produccion')
+                                            .update({
+                                                tallas_distribucion: cortePlan,
+                                                cantidad_total: totalMatrix
+                                            })
+                                            .eq('id', selectedBatch.id);
+
+                                        if (error) throw error;
+                                        alert('Planilla de corte actualizada');
+                                        fetchData(); // Refresh to update card numbers
+                                    } catch (err: any) {
+                                        alert('Error guardando planilla: ' + err.message);
+                                    }
+                                };
+
+                                return (
+                                    <div className="mt-8 pt-6 border-t border-gray-100">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <Scissors className="h-5 w-5 text-indigo-600" />
+                                                <h3 className="font-bold text-gray-800 uppercase text-sm tracking-wider">Planilla de Corte</h3>
+                                            </div>
+                                            <button
+                                                onClick={saveMatrix}
+                                                className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                                            >
+                                                Guardar Planilla
+                                            </button>
+                                        </div>
+
+                                        <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left font-black text-gray-500 uppercase text-xs">Color \ Talle</th>
+                                                        {sizes.map((t: any) => (
+                                                            <th key={t.id} className="px-2 py-3 text-center font-bold text-gray-700 min-w-[50px]">
+                                                                {t.talla_codigo}
+                                                            </th>
+                                                        ))}
+                                                        <th className="px-4 py-3 text-right font-black text-gray-500 uppercase text-xs">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200 bg-white">
+                                                    {colors.map((color: any) => {
+                                                        const rowTotal = sizes.reduce((sum: number, t: any) => sum + cellValue(color, t.id), 0);
+                                                        return (
+                                                            <tr key={color} className="hover:bg-gray-50/50">
+                                                                <td className="px-4 py-2 font-bold text-gray-900 break-words max-w-[120px]">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: color !== 'Sin Color' && color !== 'Sin color' ? color.toLowerCase() : '#eee' }}></div>
+                                                                        {color}
+                                                                    </div>
+                                                                </td>
+                                                                {sizes.map((t: any) => (
+                                                                    <td key={t.id} className="p-1">
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            className="w-full text-center border-gray-200 bg-gray-50 rounded-lg py-1.5 focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-gray-700"
+                                                                            value={cellValue(color, t.id) || ''}
+                                                                            onChange={e => handleMatrixChange(color, t.id, Number(e.target.value))}
+                                                                            placeholder="-"
+                                                                        />
+                                                                    </td>
+                                                                ))}
+                                                                <td className="px-4 py-2 text-right font-black text-indigo-600">
+                                                                    {rowTotal}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                <tfoot className="bg-gray-50 font-bold">
+                                                    <tr>
+                                                        <td className="px-4 py-3 text-gray-500 text-xs uppercase">Total</td>
+                                                        {sizes.map((t: any) => {
+                                                            const colTotal = colors.reduce((sum: number, c: any) => sum + cellValue(c, t.id), 0);
+                                                            return <td key={t.id} className="text-center py-3">{colTotal || '-'}</td>;
+                                                        })}
+                                                        <td className="px-4 py-3 text-right text-indigo-700 text-lg">
+                                                            {totalMatrix}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -496,7 +625,16 @@ export const Produccion = () => {
                                     required
                                     className="w-full border-gray-200 border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                                     value={newBatch.producto_id}
-                                    onChange={e => setNewBatch({ ...newBatch, producto_id: e.target.value })}
+                                    onChange={e => {
+                                        const pid = e.target.value;
+                                        const prod = productos.find(p => p.id === pid);
+                                        setNewBatch({
+                                            ...newBatch,
+                                            producto_id: pid,
+                                            // Auto-fill cut model with SKU if product found, otherwise keep existing or clear
+                                            modelo_corte: prod ? prod.codigo : newBatch.modelo_corte
+                                        });
+                                    }}
                                 >
                                     <option value="">Seleccionar producto...</option>
                                     {productos.map(p => (
@@ -620,9 +758,8 @@ export const Produccion = () => {
                                 </div>
                             </div>
 
-                            <p className="text-xs text-gray-400 italic text-center">
-                                * Al seleccionar un rollo, se consumirán los metros indicados del inventario.
-                            </p>
+
+
 
                             <div className="flex justify-end gap-3 mt-8">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>

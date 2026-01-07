@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon } from 'lucide-react';
 import { productService, categoryService } from '../../services/productService';
-import { supabase } from '../../lib/supabase';
 import type { Producto, ProductoTalla, Categoria } from '../../types';
 
 export const AdminProducts = () => {
     const [products, setProducts] = useState<(Producto & { producto_talles: ProductoTalla[] })[]>([]);
     const [categories, setCategories] = useState<Categoria[]>([]);
-    const [procesos, setProcesos] = useState<any[]>([]); // Add type later if needed
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,15 +42,12 @@ export const AdminProducts = () => {
         setLoading(true);
         try {
             console.log("Fetching products and categories...");
-            const [productsData, categoriesData, procesosData] = await Promise.all([
+            const [productsData, categoriesData] = await Promise.all([
                 productService.getProducts(false),
-                categoryService.getCategories(),
-                supabase.from('procesos_templates').select('*').then(res => res.data || [])
+                categoryService.getCategories()
             ]);
-            console.log("Categories fetched:", categoriesData);
             setProducts(productsData);
             setCategories(categoriesData);
-            setProcesos(procesosData);
         } catch (error) {
             console.error('Error loading admin data:', error);
         } finally {
@@ -116,6 +111,7 @@ export const AdminProducts = () => {
         try {
             const productData = {
                 ...formData,
+                proceso_produccion_id: formData.proceso_produccion_id || null, // Convert empty string to null for UUID
                 stock_total: tallesForm.reduce((sum, t) => sum + t.stock, 0),
                 slug: formData.nombre?.toLowerCase().replace(/ /g, '-')
             } as any;
@@ -417,19 +413,7 @@ export const AdminProducts = () => {
                                                 )}
                                             </div>
 
-                                            <div>
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Proceso de Producción</label>
-                                                <select
-                                                    className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-bold"
-                                                    value={formData.proceso_produccion_id || ''}
-                                                    onChange={e => setFormData({ ...formData, proceso_produccion_id: e.target.value })}
-                                                >
-                                                    <option value="">Proceso Estándar (Default)</option>
-                                                    {procesos.map(p => (
-                                                        <option key={p.id} value={p.id}>{p.nombre}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            {/* Proceso de Producción Removed as requested */}
                                         </div>
 
                                         <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">

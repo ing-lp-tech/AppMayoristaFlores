@@ -91,6 +91,7 @@ export interface Producto {
     };
     creado_en: string;
     actualizado_en: string;
+    producto_talles?: ProductoTalla[];
 }
 
 export interface ProductoTalla {
@@ -209,6 +210,7 @@ export interface LoteProduccion {
     codigo: string;
     producto_id: string;
     detalle_rollos?: { rollo_id?: string; color: string; metros: number }[];
+    tallas_distribucion?: Record<string, Record<string, number>>;
     modelo_corte?: string;
     cantidad_total: number;
     cantidad_real?: number;
