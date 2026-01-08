@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { ShoppingBag, Package } from 'lucide-react';
 import { useCartDualStore, type CartMode } from '../../../../store/cartDualStore';
 import { clsx } from 'clsx';

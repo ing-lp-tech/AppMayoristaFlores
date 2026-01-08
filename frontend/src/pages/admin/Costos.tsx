@@ -13,7 +13,6 @@ import {
     Calendar,
     Save,
     Search,
-    Filter,
     FileText,
     Edit,
     Trash2
@@ -148,8 +147,8 @@ export const Costos = () => {
     const [guardando, setGuardando] = useState(false);
 
     // Filters
-    const [filterFechaInicio, setFilterFechaInicio] = useState("");
-    const [filterFechaFin, setFilterFechaFin] = useState("");
+    const [filterFechaInicio] = useState("");
+    const [filterFechaFin] = useState("");
     const [filterBusqueda, setFilterBusqueda] = useState("");
 
     useEffect(() => {
@@ -174,7 +173,7 @@ export const Costos = () => {
             .select('*, lote:lotes_produccion(codigo, producto:productos(nombre))')
             .order('fecha', { ascending: false });
 
-        const { data, error } = await query;
+        const { data } = await query;
         if (data) setHistorial(data);
     };
 
