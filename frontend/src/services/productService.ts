@@ -118,7 +118,7 @@ export const productService = {
             await this.updateTalles(updates);
 
             // 5. Update Total Stock in Product
-            const totalAdded = Object.values(totalsPerTalle).reduce((a, b) => a + b, 0);
+
             await this.syncProductTotalStock(productId);
         }
     },
