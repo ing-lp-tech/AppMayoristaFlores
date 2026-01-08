@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
+    Box,
     Package,
     Scissors,
     ShoppingCart,
@@ -42,8 +43,14 @@ export const AdminSidebar = () => {
         {
             to: '/admin/inventario',
             icon: Layers,
-            label: 'Inventario',
+            label: 'Inventario Tel/Ins',
             allowed: ['owner', 'admin', 'inventario', 'produccion']
+        },
+        {
+            to: '/admin/stock',
+            icon: Box,
+            label: 'Stock Productos',
+            allowed: ['owner', 'admin', 'ventas', 'produccion', 'repositor']
         },
         {
             to: '/admin/costos',
@@ -90,7 +97,7 @@ export const AdminSidebar = () => {
 
     return (
         <aside className="w-64 bg-white border-r h-screen fixed left-0 top-0 flex flex-col z-20 hidden md:flex">
-            <NavLink to="/" className="p-6 border-b flex items-center gap-2 hover:bg-gray-50 transition-colors group">
+            <NavLink to="/admin/dashboard" className="p-6 border-b flex items-center gap-2 hover:bg-gray-50 transition-colors group">
                 <Scissors className="h-8 w-8 text-blue-600 group-hover:scale-110 transition-transform" />
                 <span className="text-xl font-bold">Textil Pymes</span>
             </NavLink>

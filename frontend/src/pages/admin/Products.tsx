@@ -117,8 +117,20 @@ export const AdminProducts = () => {
             } as any;
 
             if (formData.id) {
-                await productService.updateProduct(formData.id, productData);
-                alert('Producto actualizado con éxito');
+                // 1. Remove relationship data that causes errors
+                const { producto_talles, ...cleanProductData } = productData;
+
+                // 2. Update Product
+                await productService.updateProduct(formData.id, cleanProductData);
+
+                // 3. Update Talles (Stock)
+                const tallesToUpdate = tallesForm.map(t => ({
+                    ...t,
+                    producto_id: formData.id
+                }));
+                await productService.updateTalles(tallesToUpdate);
+
+                alert('Producto y stock actualizados con éxito');
             } else {
                 await productService.createProduct(productData, tallesForm);
                 alert('Producto creado con éxito');

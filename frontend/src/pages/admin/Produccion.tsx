@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { productService } from '../../services/productService';
 import type { LoteProduccion, Producto } from '../../types';
 import { Plus, CheckCircle, Package, Trash2, X, Settings, Scissors } from 'lucide-react';
 import clsx from 'clsx';
@@ -223,7 +224,17 @@ export const Produccion = () => {
             // Optional: Increment stock
             const lote = lotes.find(l => l.id === showRealQtyModal.id);
             if (lote) {
-                await supabase.rpc('increment_stock', { p_id: lote.producto_id, quantity: realQty });
+                // If we have a distribution matrix, use it to update specific sizes
+                console.log('Finalizing Batch. Distribution:', lote.tallas_distribucion);
+                if (lote.tallas_distribucion && Object.keys(lote.tallas_distribucion).length > 0) {
+                    console.log('Calling addStockFromBatch with:', lote.producto_id, lote.tallas_distribucion);
+                    await productService.addStockFromBatch(lote.producto_id, lote.tallas_distribucion);
+                    console.log('addStockFromBatch returned.');
+                } else {
+                    console.log('No distribution found. Using fallback increment_stock with realQty:', realQty);
+                    // Fallback: just update total stock if no matrix exists
+                    await supabase.rpc('increment_stock', { p_id: lote.producto_id, quantity: realQty });
+                }
             }
 
             setShowRealQtyModal(null);

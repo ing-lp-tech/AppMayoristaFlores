@@ -56,15 +56,95 @@ export const productService = {
     },
 
     async updateProduct(id: string, updates: Partial<Producto>) {
+        // Sanitize: remove relationship fields that can't be updated directly
+        const { producto_talles, id: _, created_at, ...cleanUpdates } = updates as any;
+
         const { data, error } = await supabase
             .from('productos')
-            .update({ ...updates, actualizado_en: new Date().toISOString() })
+            .update({ ...cleanUpdates, actualizado_en: new Date().toISOString() })
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
         return data as Producto;
+    },
+
+    async updateTalles(talles: any[]) {
+        if (!talles || talles.length === 0) return;
+
+        const { error } = await supabase
+            .from('producto_talles')
+            .upsert(talles);
+
+        if (error) throw error;
+    },
+
+    async addStockFromBatch(productId: string, distribution: Record<string, Record<string, number>>) {
+        if (!distribution || Object.keys(distribution).length === 0) return;
+
+        // 1. Calculate totals per Talle ID
+        const totalsPerTalle: Record<string, number> = {};
+
+        Object.values(distribution).forEach(colorDist => {
+            Object.entries(colorDist).forEach(([talleId, qty]) => {
+                totalsPerTalle[talleId] = (totalsPerTalle[talleId] || 0) + qty;
+            });
+        });
+
+        // 2. Fetch current talles to get current stock
+        const { data: currentTalles, error: fetchError } = await supabase
+            .from('producto_talles')
+            .select('*')
+            .eq('producto_id', productId);
+
+        if (fetchError) throw fetchError;
+        if (!currentTalles) return;
+
+        // 3. Prepare updates
+        const updates = currentTalles.map(t => {
+            const addedQty = totalsPerTalle[t.id] || 0;
+            if (addedQty > 0) {
+                return {
+                    ...t,
+                    stock: (t.stock || 0) + addedQty
+                };
+            }
+            return null;
+        }).filter(Boolean);
+
+        // 4. Update Talles
+        if (updates.length > 0) {
+            await this.updateTalles(updates);
+
+            // 5. Update Total Stock in Product
+            const totalAdded = Object.values(totalsPerTalle).reduce((a, b) => a + b, 0);
+            await this.syncProductTotalStock(productId);
+        }
+    },
+
+    async syncProductTotalStock(productId: string) {
+        const { data: talles, error: talleError } = await supabase
+            .from('producto_talles')
+            .select('stock')
+            .eq('producto_id', productId);
+
+        if (talleError) {
+            console.error('Error fetching talles for sync:', talleError);
+            return;
+        }
+
+        const realTotal = talles.reduce((sum, t) => sum + (t.stock || 0), 0);
+        console.log(`Syncing Total Stock for ${productId}: ${realTotal}`);
+
+        const { error: updateError } = await supabase
+            .from('productos')
+            .update({ stock_total: realTotal })
+            .eq('id', productId);
+
+        if (updateError) {
+            console.error('Error updating stock_total:', updateError);
+        }
     },
 
     async deleteProduct(id: string) {

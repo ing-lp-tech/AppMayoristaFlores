@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { AdminSidebar } from "./Sidebar/AdminSidebar";
 import { Menu, Scissors, X } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import clsx from 'clsx';
 import {
     LayoutDashboard,
+    Box,
     Package,
     ShoppingCart,
     Users,
@@ -46,8 +47,14 @@ export const Layout = () => {
         {
             to: '/admin/inventario',
             icon: Layers,
-            label: 'Inventario',
+            label: 'Inventario Tel/Ins',
             allowed: ['owner', 'admin', 'inventario', 'produccion']
+        },
+        {
+            to: '/admin/stock',
+            icon: Box,
+            label: 'Stock Productos',
+            allowed: ['owner', 'admin', 'ventas', 'produccion', 'repositor']
         },
         {
             to: '/admin/costos',
@@ -87,10 +94,10 @@ export const Layout = () => {
 
             {/* Mobile Header */}
             <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b z-30 px-4 py-3 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-2">
+                <Link to="/admin/dashboard" className="flex items-center gap-2">
                     <Scissors className="h-6 w-6 text-blue-600" />
                     <span className="font-bold text-lg">Textil Pymes</span>
-                </div>
+                </Link>
                 <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     className="p-2 -mr-2 text-gray-600 hover:bg-gray-100 rounded-lg"

@@ -15,6 +15,7 @@ import { Inventario } from './pages/admin/Inventario';
 import { Produccion } from './pages/admin/Produccion';
 import { Costos } from './pages/admin/Costos';
 import { Ventas } from './pages/admin/Ventas';
+import { Stock } from './pages/admin/Stock';
 import { Checkout } from './pages/public/Checkout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
@@ -102,6 +103,7 @@ function App() {
             <Route path="produccion" element={<Produccion />} />
             <Route path="procesos" element={<ProcessManager />} />
             <Route path="inventario" element={<Inventario />} />
+            <Route path="stock" element={<Stock />} />
             <Route path="ventas" element={<Ventas />} />
             <Route path="proveedores" element={<Proveedores />} />
             <Route path="costos" element={<Costos />} />
