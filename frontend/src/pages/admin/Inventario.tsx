@@ -250,7 +250,7 @@ export const Inventario = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Inventario de Telas e insumos</h1>
                     <p className="text-gray-500">Control de Telas e Insumos</p>
                 </div>
                 <div className="flex gap-2">
