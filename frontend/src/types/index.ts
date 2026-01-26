@@ -16,6 +16,7 @@ export interface UsuarioInterno {
     activo: boolean;
     creado_en: string;
     ultimo_login?: string;
+    tenant_id?: string;
 }
 
 export interface Cliente {
@@ -47,6 +48,7 @@ export interface Categoria {
     orden: number;
     visible_publico: boolean;
     permite_mayorista: boolean;
+    tenant_id?: string;
 }
 
 export interface Producto {
@@ -65,6 +67,7 @@ export interface Producto {
     cuidados?: string;
     imagenes: string[];
     imagen_principal?: string;
+    tenant_id?: string;
 
     // Precios Duales
     precio_minorista: number;
@@ -222,6 +225,7 @@ export interface LoteProduccion {
     fecha_fin?: string;
     creado_en: string;
     // Joined fields
+    propietario?: string;
     producto?: {
         nombre: string;
         codigo: string;

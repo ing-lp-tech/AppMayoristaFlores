@@ -5,6 +5,7 @@ import { productService } from '../../services/productService';
 import type { LoteProduccion, Producto } from '../../types';
 import { Plus, CheckCircle, Package, Trash2, X, Settings, Scissors } from 'lucide-react';
 import clsx from 'clsx';
+import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 
 export const Produccion = () => {
     const navigate = useNavigate();
@@ -27,6 +28,7 @@ export const Produccion = () => {
         detalle_rollos: [{ color: '', metros: 0 }],
         estado: 'planificado',
         fecha_inicio: new Date().toISOString().split('T')[0],
+        propietario: '',
         selectedProcessId: ''
     });
 
@@ -200,6 +202,7 @@ export const Produccion = () => {
                 detalle_rollos: [{ color: '', metros: 0 }],
                 estado: 'planificado',
                 fecha_inicio: new Date().toISOString().split('T')[0],
+                propietario: '',
                 selectedProcessId: ''
             });
         } catch (error: any) {
@@ -333,7 +336,14 @@ export const Produccion = () => {
                         className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
                     >
                         <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center group-hover:bg-indigo-50/30 transition-colors">
-                            <span className="font-mono font-bold text-indigo-600 bg-white px-2 py-1 rounded-md border text-sm shadow-sm">{lote.codigo}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-indigo-600 bg-white px-2 py-1 rounded-md border text-sm shadow-sm">{lote.codigo}</span>
+                                {lote.propietario && (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-white text-indigo-800 px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                                        {lote.propietario}
+                                    </span>
+                                )}
+                            </div>
                             <span className={clsx(
                                 "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm",
                                 lote.estado === 'planificado' && "bg-gray-100 text-gray-600 border border-gray-200",
@@ -560,12 +570,10 @@ export const Produccion = () => {
                                                                 </td>
                                                                 {sizes.map((t: any) => (
                                                                     <td key={t.id} className="p-1">
-                                                                        <input
-                                                                            type="number"
-                                                                            min="0"
+                                                                        <FormattedNumberInput
                                                                             className="w-full text-center border-gray-200 bg-gray-50 rounded-lg py-1.5 focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-gray-700"
-                                                                            value={cellValue(color, t.id) || ''}
-                                                                            onChange={e => handleMatrixChange(color, t.id, Number(e.target.value))}
+                                                                            value={cellValue(color, t.id)}
+                                                                            onChange={val => handleMatrixChange(color, t.id, val)}
                                                                             placeholder="-"
                                                                         />
                                                                     </td>
@@ -628,6 +636,20 @@ export const Produccion = () => {
                                         placeholder="Ej: Slim Fit 2024"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Propietario del Lote (Socio)</label>
+                                <select
+                                    className="w-full border-gray-200 border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-indigo-900"
+                                    value={newBatch.propietario || ''}
+                                    onChange={e => setNewBatch({ ...newBatch, propietario: e.target.value })}
+                                >
+                                    <option value="">-- Todos / Empresa --</option>
+                                    <option value="Soledad">Soledad</option>
+                                    <option value="Tatiana">Tatiana</option>
+                                    <option value="Florinda">Florinda</option>
+                                </select>
                             </div>
 
                             <div>
@@ -696,12 +718,11 @@ export const Produccion = () => {
                                     </div>
                                     <div>
                                         <label className="text-[10px] uppercase font-bold text-indigo-800 block mb-1">Buscar Metros (Aprox)</label>
-                                        <input
-                                            type="number"
+                                        <FormattedNumberInput
                                             className="w-full text-xs p-2 rounded-lg border-indigo-200 focus:ring-indigo-500"
                                             placeholder="Ej: 50"
-                                            value={rollFilters.metros}
-                                            onChange={e => setRollFilters({ ...rollFilters, metros: e.target.value })}
+                                            value={Number(rollFilters.metros) || 0}
+                                            onChange={val => setRollFilters({ ...rollFilters, metros: val.toString() })}
                                         />
                                     </div>
                                 </div>
@@ -752,14 +773,13 @@ export const Produccion = () => {
                                                     </div>
                                                     <div className="w-24">
                                                         <div className="relative">
-                                                            <input
-                                                                type="number"
+                                                            <FormattedNumberInput
                                                                 placeholder="Mts"
                                                                 className="w-full bg-white border border-gray-200 p-2 rounded-lg text-sm font-bold text-right"
-                                                                value={r.metros || ''}
-                                                                onChange={e => updateRollo(i, 'metros', e.target.value)}
+                                                                value={r.metros || 0}
+                                                                onChange={val => updateRollo(i, 'metros', val)}
+                                                                suffix={<span className="text-xs text-gray-400">m</span>}
                                                             />
-                                                            <span className="absolute right-7 top-2 text-xs text-gray-400">m</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -791,13 +811,10 @@ export const Produccion = () => {
                         <form onSubmit={handleFinalizeProduction} className="space-y-6">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cantidad Real Producida</label>
-                                <input
-                                    type="number"
-                                    autoFocus
-                                    required
+                                <FormattedNumberInput
+                                    value={realQty}
+                                    onChange={setRealQty}
                                     className="w-full border-gray-200 border-2 p-4 rounded-xl text-2xl font-bold focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                    value={realQty || ''}
-                                    onChange={e => setRealQty(Number(e.target.value))}
                                     placeholder="0"
                                 />
                             </div>

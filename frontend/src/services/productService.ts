@@ -29,22 +29,84 @@ export const productService = {
     },
 
     async createProduct(product: Omit<Producto, 'id' | 'creado_en' | 'actualizado_en'>, talles: Omit<ProductoTalla, 'id' | 'producto_id'>[]) {
-        // Debug Auth
+        // 1. Get User
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('Current User attempting create:', user?.id);
+        if (!user) throw new Error("Acceso denegado: Usuario no autenticado.");
 
-        // 1. Inserción del producto
-        const { data: productData, error: productError } = await supabase
-            .from('productos')
-            .insert(product)
-            .select()
+        // 2. Get Tenant ID from Profile (or fallback to user.id)
+        let tenantId = user.id;
+
+        const { data: profile } = await supabase
+            .from('usuarios_internos')
+            .select('tenant_id')
+            .eq('id', user.id)
             .single();
 
-        if (productError) throw productError;
+        if (profile?.tenant_id) {
+            tenantId = profile.tenant_id;
+        }
 
-        // 2. Inserción de los talles
+        // 3. Try Insert Product (Optimistic)
+        let productData: Producto | null = null;
+
+        try {
+            // Attempt insert
+            const { data, error } = await supabase
+                .from('productos')
+                .insert({
+                    ...product,
+                    tenant_id: tenantId
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            productData = data;
+
+        } catch (error: any) {
+            // 4. Handle Foreign Key Violation (Tenant missing)
+            if (error.code === '23503') { // ForeignKeyViolation
+                console.log("Tenant missing, creating...");
+
+                // Create tenant (Minimal fields to avoid schema issues)
+                const { error: tenantError } = await supabase
+                    .from('tenants')
+                    .insert({
+                        id: tenantId,
+                        // Removed 'nombre' as it caused errors. 
+                        // Assuming 'created_at' is auto current_timestamp or we configure it? 
+                        // Safest is to specific ID only if possible, or created_at.
+                        created_at: new Date().toISOString()
+                    });
+
+                if (tenantError) {
+                    console.error("Failed to create tenant:", tenantError);
+                    throw error; // Throw original product error if we can't fix it
+                }
+
+                // Retry Product Insert
+                const { data: retryData, error: retryError } = await supabase
+                    .from('productos')
+                    .insert({
+                        ...product,
+                        tenant_id: tenantId
+                    })
+                    .select()
+                    .single();
+
+                if (retryError) throw retryError;
+                productData = retryData;
+
+            } else {
+                throw error; // Rethrow other errors
+            }
+        }
+
+        if (!productData) throw new Error("Error creating product");
+
+        // 5. Insert Talles
         if (talles.length > 0) {
-            const tallesWithId = talles.map(t => ({ ...t, producto_id: productData.id }));
+            const tallesWithId = talles.map(t => ({ ...t, producto_id: productData!.id }));
             const { error: tallesError } = await supabase
                 .from('producto_talles')
                 .insert(tallesWithId);
@@ -162,7 +224,7 @@ export const productService = {
         const filePath = `products/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-            .from('product-photos')
+            .from('product-photos') // Should verify this bucket exists and policy allows upload
             .upload(filePath, file);
 
         if (uploadError) throw uploadError;
@@ -187,13 +249,38 @@ export const categoryService = {
     },
 
     async createCategory(category: Omit<Categoria, 'id'>) {
-        const { data, error } = await supabase
-            .from('categorias')
-            .insert(category)
-            .select()
-            .single();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuario no autenticado para crear categoría");
 
-        if (error) throw error;
-        return data as Categoria;
+        let tenantId = user.id;
+        const { data: profile } = await supabase.from('usuarios_internos').select('tenant_id').eq('id', user.id).single();
+        if (profile?.tenant_id) tenantId = profile.tenant_id;
+
+        try {
+            const { data, error } = await supabase
+                .from('categorias')
+                .insert({ ...category, tenant_id: tenantId })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data as Categoria;
+
+        } catch (error: any) {
+            if (error.code === '23503') { // Tenant missing
+                await supabase.from('tenants').insert({ id: tenantId, created_at: new Date().toISOString() });
+
+                // Retry
+                const { data, error: retryError } = await supabase
+                    .from('categorias')
+                    .insert({ ...category, tenant_id: tenantId })
+                    .select()
+                    .single();
+
+                if (retryError) throw retryError;
+                return data as Categoria;
+            }
+            throw error;
+        }
     }
 };

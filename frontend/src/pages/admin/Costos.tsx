@@ -26,74 +26,7 @@ type InsumoItem = {
     precio: number;
 };
 
-// Helper: Format number with thousands separator (e.g. 1000 -> 1.000)
-const formatNumber = (num: number | string) => {
-    if (!num) return "";
-    const clean = num.toString().replace(/\./g, "").replace(/,/g, "");
-    return Number(clean).toLocaleString("es-AR");
-};
-
-// Helper: Parse formatted string back to number
-const parseNumber = (str: string) => {
-    if (!str) return 0;
-    return Number(str.replace(/\./g, "").replace(/,/g, ""));
-};
-
-// Custom Input Component for consistent styling and behavior
-const FormattedInput = ({
-    value,
-    onChange,
-    placeholder = "0",
-    prefix = "",
-    suffix = "",
-    className = ""
-}: {
-    value: number;
-    onChange: (val: number) => void;
-    placeholder?: string;
-    prefix?: React.ReactNode;
-    suffix?: React.ReactNode;
-    className?: string;
-}) => {
-    const [displayVal, setDisplayVal] = useState(value === 0 ? "" : formatNumber(value));
-
-    // Update local display when prop updates (and not currently focusing? simplified for now)
-    useEffect(() => {
-        if (parseNumber(displayVal) !== value) {
-            setDisplayVal(value === 0 ? "" : formatNumber(value));
-        }
-    }, [value]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        const numericVal = val.replace(/[^0-9]/g, "");
-
-        if (numericVal === "") {
-            setDisplayVal("");
-            onChange(0);
-            return;
-        }
-
-        const num = Number(numericVal);
-        setDisplayVal(num.toLocaleString("es-AR"));
-        onChange(num);
-    };
-
-    return (
-        <div className={`relative ${className}`}>
-            {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{prefix}</span>}
-            <input
-                type="text"
-                inputMode="numeric"
-                className={`w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2.5 border ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''}`}
-                placeholder={placeholder}
-                value={displayVal}
-                onChange={handleChange}
-            />
-            {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{suffix}</span>}
-        </div>
-    );
-};
+import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 
 export const Costos = () => {
     // DB Data
@@ -493,7 +426,7 @@ export const Costos = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Total {fabricUnit === 'metros' ? 'Metros' : 'Kilos'} Utilizados
                                 </label>
-                                <FormattedInput
+                                <FormattedNumberInput
                                     value={fabricQty}
                                     onChange={setFabricQty}
                                     placeholder="0"
@@ -507,7 +440,7 @@ export const Costos = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Precio por {fabricUnit === 'metros' ? 'Metro' : 'Kilo'}
                                 </label>
-                                <FormattedInput
+                                <FormattedNumberInput
                                     value={fabricPrice}
                                     onChange={setFabricPrice}
                                     prefix="$"
@@ -525,7 +458,7 @@ export const Costos = () => {
                         </h3>
                         <div className="max-w-md w-full">
                             <label className="block text-sm font-medium text-gray-700 mb-2">Costo de Costura (por prenda)</label>
-                            <FormattedInput
+                            <FormattedNumberInput
                                 value={costoCostura}
                                 onChange={setCostoCostura}
                                 prefix="$"
@@ -585,7 +518,7 @@ export const Costos = () => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Cant. por Prenda</label>
-                                    <FormattedInput
+                                    <FormattedNumberInput
                                         value={nuevoInsumo.cantidadPorPrenda}
                                         onChange={val => setNuevoInsumo({ ...nuevoInsumo, cantidadPorPrenda: val })}
                                         className="text-sm"
@@ -593,7 +526,7 @@ export const Costos = () => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Costo Unitario</label>
-                                    <FormattedInput
+                                    <FormattedNumberInput
                                         value={nuevoInsumo.precioUnitario}
                                         onChange={val => setNuevoInsumo({ ...nuevoInsumo, precioUnitario: val })}
                                         prefix="$"
@@ -614,7 +547,7 @@ export const Costos = () => {
                     <div className="p-6 bg-gray-50 rounded-b-xl">
                         <div className="max-w-xs mb-6 w-full">
                             <label className="block text-sm font-medium text-gray-700 mb-2">Margen de Ganancia (%)</label>
-                            <FormattedInput
+                            <FormattedNumberInput
                                 value={margenGanancia}
                                 onChange={setMargenGanancia}
                                 suffix={<Percent className="w-4 h-4 text-gray-400" />}

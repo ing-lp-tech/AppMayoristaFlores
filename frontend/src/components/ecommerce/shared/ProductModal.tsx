@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, ShoppingCart, Check, Package, Info, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, ShoppingCart, Check, Package, Info, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCartDualStore } from '../../../store/cartDualStore';
 import type { Producto, ProductoTalla } from '../../../types';
 
@@ -13,6 +13,35 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
     const { mode, addMinoristaItem, addCurvaItem } = useCartDualStore();
     const [selectedSizeId, setSelectedSizeId] = useState<string>('');
     const [added, setAdded] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // Carousel Logic
+    useEffect(() => {
+        if (!isOpen) {
+            setCurrentImageIndex(0); // Reset on close
+            return;
+        }
+
+        // Auto-play only if multiple images
+        if (product.imagenes && product.imagenes.length > 1) {
+            const interval = setInterval(() => {
+                setCurrentImageIndex(prev => (prev + 1) % product.imagenes!.length);
+            }, 4000); // 4 seconds
+            return () => clearInterval(interval);
+        }
+    }, [isOpen, product.imagenes]);
+
+    const nextImage = () => {
+        if (product.imagenes && product.imagenes.length > 0) {
+            setCurrentImageIndex(prev => (prev + 1) % product.imagenes!.length);
+        }
+    };
+
+    const prevImage = () => {
+        if (product.imagenes && product.imagenes.length > 0) {
+            setCurrentImageIndex(prev => (prev - 1 + product.imagenes!.length) % product.imagenes!.length);
+        }
+    };
 
     // Derived values
     const isWholesale = mode === 'mayorista';
@@ -67,15 +96,62 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                     </button>
 
                     <div className="grid grid-cols-1 md:grid-cols-2">
-                        {/* LEFT: Image Gallery */}
+                        {/* LEFT: Image Gallery / Carousel */}
                         <div className="aspect-[4/5] bg-gray-50 relative group">
-                            <img
-                                src={product.imagen_principal || 'https://via.placeholder.com/600x800'}
-                                alt={product.nombre}
-                                className="absolute inset-0 w-full h-full object-cover"
-                            />
-                            {/* Overlay for price comparison if useful */}
-                            <div className="absolute bottom-6 left-6 right-6">
+                            {/* Carousel Content */}
+                            <div className="absolute inset-0 w-full h-full">
+                                {product.imagenes && product.imagenes.length > 0 ? (
+                                    <>
+                                        <img
+                                            src={product.imagenes[currentImageIndex] || product.imagenes[0]}
+                                            alt={`${product.nombre} - ${currentImageIndex + 1}`}
+                                            className="w-full h-full object-cover transition-all duration-500"
+                                        />
+
+                                        {/* Navigation Arrows - Only if > 1 image */}
+                                        {product.imagenes.length > 1 && (
+                                            <>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); prevImage(); }}
+                                                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-white text-gray-800"
+                                                >
+                                                    <ChevronLeft className="h-6 w-6" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); nextImage(); }}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-white text-gray-800"
+                                                >
+                                                    <ChevronRight className="h-6 w-6" />
+                                                </button>
+
+                                                {/* Dots Indicator */}
+                                                <div className="absolute bottom-24 left-0 right-0 flex justify-center gap-2 z-10">
+                                                    {product.imagenes.map((_, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(idx); }}
+                                                            className={`w-2 h-2 rounded-full transition-all shadow-md ${currentImageIndex === idx
+                                                                ? 'bg-white w-6'
+                                                                : 'bg-white/50 hover:bg-white/80'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </>
+                                ) : (
+                                    // Fallback for NO images
+                                    <img
+                                        src={product.imagen_principal || 'https://via.placeholder.com/600x800'}
+                                        alt={product.nombre}
+                                        className="w-full h-full object-cover"
+                                    />
+                                )}
+                            </div>
+
+                            {/* Overlay for price comparison */}
+                            <div className="absolute bottom-6 left-6 right-6 z-20">
                                 <div className="bg-white/90 backdrop-blur-lg p-4 rounded-2xl shadow-xl border border-white/50">
                                     <div className="flex justify-between items-center">
                                         <div className="flex flex-col">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon } from 'lucide-react';
 import { productService, categoryService } from '../../services/productService';
+import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 import type { Producto, ProductoTalla, Categoria } from '../../types';
 
 export const AdminProducts = () => {
@@ -84,19 +85,30 @@ export const AdminProducts = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if ((formData.imagenes?.length || 0) >= 3) {
+            alert('Máximo 3 imágenes por producto');
+            return;
+        }
+
         setUploading(true);
         try {
             const url = await productService.uploadProductImage(file);
-            setFormData(prev => ({
-                ...prev,
-                imagenes: [...(prev.imagenes || []), url],
-                imagen_principal: prev.imagen_principal || url
-            }));
+            setFormData(prev => {
+                const currentImages = prev.imagenes || [];
+                const newImages = [...currentImages, url];
+                return {
+                    ...prev,
+                    imagenes: newImages,
+                    imagen_principal: newImages[0] // Always ensure first image is main
+                };
+            });
         } catch (error) {
             console.error('Upload error:', error);
             alert('Error al subir imagen');
         } finally {
             setUploading(false);
+            // Reset input value to allow uploading same file again if needed
+            e.target.value = '';
         }
     };
 
@@ -167,7 +179,12 @@ export const AdminProducts = () => {
             setProducts(products.filter(p => p.id !== id));
         } catch (error: any) {
             console.error('Error deleting:', error);
-            alert('Error al eliminar producto');
+
+            if (error.code === '23503') {
+                alert('No se puede eliminar este producto porque tiene Lotes de Producción asociados.\n\nPara mantener el historial, te recomendamos "ocultarlo" (quitar disponibilidad) en lugar de eliminarlo.');
+            } else {
+                alert('Error al eliminar producto: ' + error.message);
+            }
         }
     };
 
@@ -228,6 +245,26 @@ export const AdminProducts = () => {
         }]);
     };
 
+    // Nueva función para togglear visibilidad
+    const handleToggleVisibility = async (product: Producto & { producto_talles: ProductoTalla[] }) => {
+        const newValue = !product.visible_publico;
+
+        // Optimistic UI Update
+        const updatedProducts = products.map(p =>
+            p.id === product.id ? { ...p, visible_publico: newValue } : p
+        );
+        setProducts(updatedProducts);
+
+        try {
+            await productService.updateProduct(product.id, { visible_publico: newValue });
+        } catch (error) {
+            console.error('Error updating visibility:', error);
+            alert('Error al actualizar visibilidad');
+            // Revert on error
+            setProducts(products);
+        }
+    };
+
     return (
         <div className="p-6 max-w-7xl mx-auto pb-20">
             <div className="flex justify-between items-center mb-10">
@@ -258,7 +295,7 @@ export const AdminProducts = () => {
                                     <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Producto</th>
                                     <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Precios Duales</th>
                                     <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Stock Total</th>
-                                    <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Estado</th>
+                                    <th className="px-6 py-5 text-center text-xs font-black text-gray-400 uppercase tracking-widest">Visible?</th>
                                     <th className="px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Acciones</th>
                                 </tr>
                             </thead>
@@ -307,14 +344,13 @@ export const AdminProducts = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-col gap-1">
-                                                {product.visible_publico ? (
-                                                    <span className="px-2.5 py-1 inline-flex text-[10px] font-black rounded-lg bg-green-100 text-green-700 border border-green-200 uppercase">Visible</span>
-                                                ) : (
-                                                    <span className="px-2.5 py-1 inline-flex text-[10px] font-black rounded-lg bg-gray-100 text-gray-400 border border-gray-200 uppercase">Oculto</span>
-                                                )}
-                                            </div>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <button
+                                                onClick={() => handleToggleVisibility(product)}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${product.visible_publico ? 'bg-green-500' : 'bg-gray-200'}`}
+                                            >
+                                                <span className={`${product.visible_publico ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+                                            </button>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
@@ -389,29 +425,46 @@ export const AdminProducts = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                         {/* Image Upload Area */}
                                         <div className="md:col-span-1">
-                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Fotos del Producto</label>
-                                            <div className="aspect-[3/4] rounded-3xl border-4 border-dashed border-gray-100 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden group hover:border-blue-100 transition-all">
-                                                {formData.imagen_principal ? (
-                                                    <>
-                                                        <img src={formData.imagen_principal} className="absolute inset-0 w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Fotos del Producto ({formData.imagenes?.length || 0}/3)</label>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {/* Existing Images */}
+                                                {formData.imagenes?.map((img, index) => (
+                                                    <div key={index} className="aspect-[3/4] rounded-2xl relative overflow-hidden group border border-gray-100">
+                                                        <img src={img} className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setFormData({ ...formData, imagen_principal: '', imagenes: [] })}
-                                                                className="bg-red-500 text-white p-3 rounded-full"
+                                                                onClick={() => {
+                                                                    const newImages = formData.imagenes?.filter((_, i) => i !== index) || [];
+                                                                    setFormData({
+                                                                        ...formData,
+                                                                        imagenes: newImages,
+                                                                        imagen_principal: newImages[0] || ''
+                                                                    });
+                                                                }}
+                                                                className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
                                                             >
-                                                                <Trash2 className="h-5 w-5" />
+                                                                <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         </div>
-                                                    </>
-                                                ) : (
-                                                    <>
+                                                        {index === 0 && (
+                                                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-lg uppercase">
+                                                                Principal
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+
+                                                {/* Upload Button - Only show if < 3 images */}
+                                                {(!formData.imagenes || formData.imagenes.length < 3) && (
+                                                    <div className="aspect-[3/4] rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-4 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer relative">
                                                         {uploading ? (
-                                                            <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                                                            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                                                         ) : (
                                                             <>
-                                                                <Upload className="h-10 w-10 text-gray-300 mb-4" />
-                                                                <p className="text-xs font-bold text-gray-400 italic">Click para subir foto principal</p>
+                                                                <Upload className="h-8 w-8 text-gray-300 mb-2 group-hover:text-blue-500" />
+                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Agregar Foto</p>
                                                             </>
                                                         )}
                                                         <input
@@ -421,11 +474,12 @@ export const AdminProducts = () => {
                                                             accept="image/*"
                                                             disabled={uploading}
                                                         />
-                                                    </>
+                                                    </div>
                                                 )}
                                             </div>
-
-                                            {/* Proceso de Producción Removed as requested */}
+                                            <p className="mt-3 text-[10px] text-gray-400 font-medium ml-1">
+                                                La primera imagen será la portada del producto. Sube hasta 3 fotos.
+                                            </p>
                                         </div>
 
                                         <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -523,17 +577,15 @@ export const AdminProducts = () => {
                                                         value={t.talla_nombre}
                                                         onChange={e => updateTalla(idx, 'talla_nombre', e.target.value)}
                                                     />
-                                                    <input
-                                                        type="number"
+                                                    <FormattedNumberInput
                                                         className="w-full rounded-xl border-gray-200 font-black py-2 px-3 text-sm focus:ring-blue-600"
                                                         value={t.stock}
-                                                        onChange={e => updateTalla(idx, 'stock', Number(e.target.value))}
+                                                        onChange={val => updateTalla(idx, 'stock', val)}
                                                     />
-                                                    <input
-                                                        type="number"
+                                                    <FormattedNumberInput
                                                         className="w-full rounded-xl border-gray-200 font-bold py-2 px-3 text-sm focus:ring-blue-600 text-red-500"
                                                         value={t.stock_minimo}
-                                                        onChange={e => updateTalla(idx, 'stock_minimo', Number(e.target.value))}
+                                                        onChange={val => updateTalla(idx, 'stock_minimo', val)}
                                                     />
                                                     <div className="flex justify-center">
                                                         <button
@@ -574,12 +626,11 @@ export const AdminProducts = () => {
                                                     <div>
                                                         <label className="block text-xs font-black text-gray-400 uppercase mb-2">Precio de Venta Final</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">$</span>
-                                                            <input
-                                                                type="number"
+                                                            <FormattedNumberInput
                                                                 className="w-full rounded-2xl border-gray-200 pl-8 py-4 text-xl font-black text-gray-900 focus:ring-blue-600"
-                                                                value={formData.precio_minorista}
-                                                                onChange={e => setFormData({ ...formData, precio_minorista: Number(e.target.value) })}
+                                                                value={formData.precio_minorista || 0}
+                                                                onChange={val => setFormData({ ...formData, precio_minorista: val })}
+                                                                prefix={<span className="font-black text-gray-400">$</span>}
                                                             />
                                                         </div>
                                                     </div>
@@ -608,12 +659,11 @@ export const AdminProducts = () => {
                                                     <div>
                                                         <label className="block text-xs font-black text-blue-400 uppercase mb-2">Precio por Curva Completa</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-blue-400">$</span>
-                                                            <input
-                                                                type="number"
+                                                            <FormattedNumberInput
                                                                 className="w-full rounded-2xl border-blue-200 pl-8 py-4 text-xl font-black text-blue-900 focus:ring-blue-600 bg-white"
-                                                                value={formData.precio_mayorista_curva}
-                                                                onChange={e => setFormData({ ...formData, precio_mayorista_curva: Number(e.target.value) })}
+                                                                value={formData.precio_mayorista_curva || 0}
+                                                                onChange={val => setFormData({ ...formData, precio_mayorista_curva: val })}
+                                                                prefix={<span className="font-black text-blue-400">$</span>}
                                                             />
                                                         </div>
                                                     </div>

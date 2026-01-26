@@ -95,8 +95,7 @@ export const Layout = () => {
             {/* Mobile Header */}
             <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b z-30 px-4 py-3 flex items-center justify-between shadow-sm">
                 <Link to="/admin/dashboard" className="flex items-center gap-2">
-                    <Scissors className="h-6 w-6 text-blue-600" />
-                    <span className="font-bold text-lg">Textil Pymes</span>
+                    <img src="/scargo_logo_v2.png" alt="SCARGO" className="h-12 w-auto object-contain" />
                 </Link>
                 <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

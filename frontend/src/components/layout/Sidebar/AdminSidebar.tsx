@@ -98,8 +98,7 @@ export const AdminSidebar = () => {
     return (
         <aside className="w-64 bg-white border-r h-screen fixed left-0 top-0 flex flex-col z-20 hidden md:flex">
             <NavLink to="/admin/dashboard" className="p-6 border-b flex items-center gap-2 hover:bg-gray-50 transition-colors group">
-                <Scissors className="h-8 w-8 text-blue-600 group-hover:scale-110 transition-transform" />
-                <span className="text-xl font-bold">Textil Pymes</span>
+                <img src="/scargo_logo_v2.png" alt="SCARGO" className="h-14 w-auto object-contain" />
             </NavLink>
 
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { RolloTela, Insumo, Proveedor } from '../../types';
 import { Plus, Search, Edit, Trash2, AlertCircle, ChevronDown, ChevronRight, Package, Ruler, Scale } from 'lucide-react';
+import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 import clsx from 'clsx';
 
 // Extended type (since we added columns in DB but maybe not in TS types yet)
@@ -9,6 +10,7 @@ interface ExtendedRollo extends RolloTela {
     ancho_cm?: number;
     peso_inicial?: number;
     peso_restante?: number;
+    propietario?: string;
 }
 
 export const Inventario = () => {
@@ -36,7 +38,8 @@ export const Inventario = () => {
         peso_restante: 0,
         ancho_cm: 150,
         costo_por_metro: 0,
-        estado: 'disponible'
+        estado: 'disponible',
+        propietario: ''
     });
 
     const [newInsumo, setNewInsumo] = useState<Partial<Insumo>>({
@@ -52,7 +55,8 @@ export const Inventario = () => {
         tipo_tela_id: '',
         proveedor_id: '',
         ancho_cm: 150,
-        costo_por_metro: 0
+        costo_por_metro: 0,
+        propietario: ''
     });
 
     const [batchRolls, setBatchRolls] = useState([
@@ -139,6 +143,7 @@ export const Inventario = () => {
                             proveedor_id: batchCommon.proveedor_id || null,
                             ancho_cm: batchCommon.ancho_cm,
                             costo_por_metro: batchCommon.costo_por_metro,
+                            propietario: batchCommon.propietario || null,
                             estado: 'disponible',
 
                             codigo: autoCode,
@@ -357,7 +362,14 @@ export const Inventario = () => {
                                                     {colorRolls.map(t => (
                                                         <div key={t.id} className="relative bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow group">
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">{t.codigo}</span>
+                                                                <div className="flex flex-col gap-1 items-start">
+                                                                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">{t.codigo}</span>
+                                                                    {t.propietario && (
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                                                                            {t.propietario}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                     <button onClick={() => openEdit(t)} className="p-1 hover:text-blue-600"><Edit className="h-3 w-3" /></button>
                                                                     <button onClick={() => handleDelete(t.id)} className="p-1 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
@@ -403,39 +415,41 @@ export const Inventario = () => {
                 </div>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-600 font-medium text-xs uppercase">
-                            <tr>
-                                <th className="px-6 py-3">Insumo</th>
-                                <th className="px-6 py-3">Stock</th>
-                                <th className="px-6 py-3">Unidad</th>
-                                <th className="px-6 py-3">Costo Unit.</th>
-                                <th className="px-6 py-3 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredInsumos.map(i => (
-                                <tr key={i.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4">
-                                        <div className="font-medium text-gray-900">{i.nombre}</div>
-                                        <div className="text-xs text-gray-500">{i.codigo}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className={clsx("flex items-center gap-2", i.stock_actual <= i.stock_minimo && "text-red-600 font-bold")}>
-                                            {i.stock_actual <= i.stock_minimo && <AlertCircle className="h-4 w-4" />}
-                                            {i.stock_actual}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-500">{i.unidad_medida}</td>
-                                    <td className="px-6 py-4 text-gray-500">${i.costo_unitario}</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button onClick={() => openEdit(i)} className="text-blue-600 hover:underline mr-3">Editar</button>
-                                        <button onClick={() => handleDelete(i.id)} className="text-red-600 hover:underline">Eliminar</button>
-                                    </td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50 text-gray-600 font-medium text-xs uppercase">
+                                <tr>
+                                    <th className="px-6 py-3">Insumo</th>
+                                    <th className="px-6 py-3">Stock</th>
+                                    <th className="px-6 py-3">Unidad</th>
+                                    <th className="px-6 py-3">Costo Unit.</th>
+                                    <th className="px-6 py-3 text-right">Acciones</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredInsumos.map(i => (
+                                    <tr key={i.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-gray-900">{i.nombre}</div>
+                                            <div className="text-xs text-gray-500">{i.codigo}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className={clsx("flex items-center gap-2", i.stock_actual <= i.stock_minimo && "text-red-600 font-bold")}>
+                                                {i.stock_actual <= i.stock_minimo && <AlertCircle className="h-4 w-4" />}
+                                                {i.stock_actual}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-500">{i.unidad_medida}</td>
+                                        <td className="px-6 py-4 text-gray-500">${i.costo_unitario}</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button onClick={() => openEdit(i)} className="text-blue-600 hover:underline mr-3">Editar</button>
+                                            <button onClick={() => handleDelete(i.id)} className="text-red-600 hover:underline">Eliminar</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -466,19 +480,41 @@ export const Inventario = () => {
                                             </div>
                                         </div>
 
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Propietario</label>
+                                            <select
+                                                className="w-full border p-2 rounded font-medium text-blue-900"
+                                                value={newTela.propietario || ''}
+                                                onChange={e => setNewTela({ ...newTela, propietario: e.target.value })}
+                                            >
+                                                <option value="">-- Sin asignar --</option>
+                                                <option value="Soledad">Soledad</option>
+                                                <option value="Tatiana">Tatiana</option>
+                                                <option value="Florinda">Florinda</option>
+                                            </select>
+                                        </div>
+
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Metros Restantes</label>
                                                 <div className="relative">
-                                                    <input type="number" step="0.1" className="w-full border p-2 rounded pl-8" value={newTela.metros_restantes || ''} onChange={e => setNewTela({ ...newTela, metros_restantes: Number(e.target.value) })} required />
-                                                    <Ruler className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                                                    <FormattedNumberInput
+                                                        value={newTela.metros_restantes || 0}
+                                                        onChange={val => setNewTela({ ...newTela, metros_restantes: val })}
+                                                        className="w-full border p-2 rounded pl-8"
+                                                        suffix={<Ruler className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />}
+                                                    />
                                                 </div>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Peso Restante (Kg)</label>
                                                 <div className="relative">
-                                                    <input type="number" step="0.1" className="w-full border p-2 rounded pl-8" value={newTela.peso_restante || ''} onChange={e => setNewTela({ ...newTela, peso_restante: Number(e.target.value) })} />
-                                                    <Scale className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                                                    <FormattedNumberInput
+                                                        value={newTela.peso_restante || 0}
+                                                        onChange={val => setNewTela({ ...newTela, peso_restante: val })}
+                                                        className="w-full border p-2 rounded pl-8"
+                                                        suffix={<Scale className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />}
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
@@ -525,13 +561,21 @@ export const Inventario = () => {
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">Costo ($/m)</label>
-                                                    <input type="number" className="w-full border p-2 rounded bg-white" value={batchCommon.costo_por_metro} onChange={e => setBatchCommon({ ...batchCommon, costo_por_metro: Number(e.target.value) })} required />
+                                                    <FormattedNumberInput
+                                                        value={batchCommon.costo_por_metro || 0}
+                                                        onChange={val => setBatchCommon({ ...batchCommon, costo_por_metro: val })}
+                                                        className="w-full border p-2 rounded bg-white"
+                                                    />
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">Ancho (cm)</label>
-                                                    <input type="number" className="w-full border p-2 rounded bg-white" value={batchCommon.ancho_cm} onChange={e => setBatchCommon({ ...batchCommon, ancho_cm: Number(e.target.value) })} />
+                                                    <FormattedNumberInput
+                                                        value={batchCommon.ancho_cm || 0}
+                                                        onChange={val => setBatchCommon({ ...batchCommon, ancho_cm: val })}
+                                                        className="w-full border p-2 rounded bg-white"
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">Proveedor (del Lote)</label>
@@ -544,6 +588,19 @@ export const Inventario = () => {
                                                         {proveedores.filter(p => p.tipo === 'tela').map(p => (
                                                             <option key={p.id} value={p.id}>{p.nombre}</option>
                                                         ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-500 mb-1">Propietario (Socio)</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded bg-white font-bold text-blue-900"
+                                                        value={batchCommon.propietario}
+                                                        onChange={e => setBatchCommon({ ...batchCommon, propietario: e.target.value })}
+                                                    >
+                                                        <option value="">-- Todos / Empresa --</option>
+                                                        <option value="Soledad">Soledad</option>
+                                                        <option value="Tatiana">Tatiana</option>
+                                                        <option value="Florinda">Florinda</option>
                                                     </select>
                                                 </div>
                                             </div>
@@ -569,25 +626,22 @@ export const Inventario = () => {
                                                                 required
                                                             />
                                                             <div className="relative">
-                                                                <input
-                                                                    type="number" step="0.1"
+                                                                <FormattedNumberInput
                                                                     placeholder="Metros"
                                                                     className="border p-1.5 rounded text-sm w-full pl-6"
-                                                                    value={roll.metros_iniciales || ''}
-                                                                    onChange={e => updateBatchRow(idx, 'metros_iniciales', Number(e.target.value))}
-                                                                    required
+                                                                    value={roll.metros_iniciales || 0}
+                                                                    onChange={val => updateBatchRow(idx, 'metros_iniciales', val)}
+                                                                    suffix={<Ruler className="absolute left-1.5 top-2 h-3 w-3 text-gray-400" />}
                                                                 />
-                                                                <Ruler className="absolute left-1.5 top-2 h-3 w-3 text-gray-400" />
                                                             </div>
                                                             <div className="relative">
-                                                                <input
-                                                                    type="number" step="0.1"
+                                                                <FormattedNumberInput
                                                                     placeholder="Kg"
                                                                     className="border p-1.5 rounded text-sm w-full pl-6"
-                                                                    value={roll.peso_inicial || ''}
-                                                                    onChange={e => updateBatchRow(idx, 'peso_inicial', Number(e.target.value))}
+                                                                    value={roll.peso_inicial || 0}
+                                                                    onChange={val => updateBatchRow(idx, 'peso_inicial', val)}
+                                                                    suffix={<Scale className="absolute left-1.5 top-2 h-3 w-4 text-gray-400" />}
                                                                 />
-                                                                <Scale className="absolute left-1.5 top-2 h-3 w-3 text-gray-400" />
                                                             </div>
                                                         </div>
                                                         {batchRolls.length > 1 && (
@@ -613,8 +667,18 @@ export const Inventario = () => {
                                     <input placeholder="Código" className="w-full border p-2 rounded" value={newInsumo.codigo} onChange={e => setNewInsumo({ ...newInsumo, codigo: e.target.value })} required />
                                     <input placeholder="Nombre (ej: Botón 20mm)" className="w-full border p-2 rounded" value={newInsumo.nombre} onChange={e => setNewInsumo({ ...newInsumo, nombre: e.target.value })} required />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input type="number" placeholder="Stock Actual" className="border p-2 rounded" value={newInsumo.stock_actual || ''} onChange={e => setNewInsumo({ ...newInsumo, stock_actual: Number(e.target.value) })} required />
-                                        <input type="number" placeholder="Stock Mínimo" className="border p-2 rounded" value={newInsumo.stock_minimo || ''} onChange={e => setNewInsumo({ ...newInsumo, stock_minimo: Number(e.target.value) })} required />
+                                        <FormattedNumberInput
+                                            placeholder="Stock Actual"
+                                            className="border p-2 rounded"
+                                            value={newInsumo.stock_actual || 0}
+                                            onChange={val => setNewInsumo({ ...newInsumo, stock_actual: val })}
+                                        />
+                                        <FormattedNumberInput
+                                            placeholder="Stock Mínimo"
+                                            className="border p-2 rounded"
+                                            value={newInsumo.stock_minimo || 0}
+                                            onChange={val => setNewInsumo({ ...newInsumo, stock_minimo: val })}
+                                        />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <select className="border p-2 rounded" value={newInsumo.unidad_medida} onChange={e => setNewInsumo({ ...newInsumo, unidad_medida: e.target.value })}>
@@ -622,7 +686,12 @@ export const Inventario = () => {
                                             <option value="metros">Metros</option>
                                             <option value="kg">Metros</option>
                                         </select>
-                                        <input type="number" placeholder="Costo Unitario ($)" className="border p-2 rounded" value={newInsumo.costo_unitario || ''} onChange={e => setNewInsumo({ ...newInsumo, costo_unitario: Number(e.target.value) })} required />
+                                        <FormattedNumberInput
+                                            placeholder="Costo Unitario ($)"
+                                            className="border p-2 rounded"
+                                            value={newInsumo.costo_unitario || 0}
+                                            onChange={val => setNewInsumo({ ...newInsumo, costo_unitario: val })}
+                                        />
                                     </div>
                                     <select
                                         className="w-full border p-2 rounded"
@@ -670,7 +739,11 @@ export const Inventario = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Precio x Kg</label>
-                                    <input type="number" step="0.01" className="w-full border p-2 rounded" value={newTypeDraft.precio_por_kilo || ''} onChange={e => setNewTypeDraft({ ...newTypeDraft, precio_por_kilo: Number(e.target.value) })} />
+                                    <FormattedNumberInput
+                                        className="w-full border p-2 rounded"
+                                        value={newTypeDraft.precio_por_kilo || 0}
+                                        onChange={val => setNewTypeDraft({ ...newTypeDraft, precio_por_kilo: val })}
+                                    />
                                 </div>
                             </div>
                             <div>
