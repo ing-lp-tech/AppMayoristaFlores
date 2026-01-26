@@ -67,6 +67,7 @@ export interface Producto {
     cuidados?: string;
     imagenes: string[];
     imagen_principal?: string;
+    colores?: { nombre: string; hex: string }[]; // New field for colors
     tenant_id?: string;
 
     // Precios Duales

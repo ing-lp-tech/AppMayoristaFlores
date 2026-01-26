@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon, ShoppingBag, Copy } from 'lucide-react';
 import { productService, categoryService } from '../../services/productService';
 import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 import type { Producto, ProductoTalla, Categoria } from '../../types';
+import { getColorName } from '../../utils/colorUtils';
 
 export const AdminProducts = () => {
     const [products, setProducts] = useState<(Producto & { producto_talles: ProductoTalla[] })[]>([]);
@@ -10,6 +11,7 @@ export const AdminProducts = () => {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<(Producto & { producto_talles: ProductoTalla[] }) | null>(null); // For mobile details modal
     const [activeTab, setActiveTab] = useState<'general' | 'variantes' | 'precios'>('general');
 
     // Form State
@@ -23,8 +25,10 @@ export const AdminProducts = () => {
         precio_mayorista_curva: 0,
         disponible_minorista: true,
         disponible_mayorista: true,
+
         imagenes: [],
         imagen_principal: '',
+        colores: [], // Initialize colors
         curva_minima: true
     });
 
@@ -34,6 +38,10 @@ export const AdminProducts = () => {
         { talla_codigo: 'L', talla_nombre: 'Large', orden: 3, incluido_curva: true, stock: 0, stock_minimo: 5, disponible_publico: true },
         { talla_codigo: 'XL', talla_nombre: 'Extra Large', orden: 4, incluido_curva: true, stock: 0, stock_minimo: 5, disponible_publico: true }
     ]);
+
+    // Color Input State
+    const [newColorName, setNewColorName] = useState('');
+    const [newColorHex, setNewColorHex] = useState('#000000');
 
     useEffect(() => {
         loadInitialData();
@@ -69,6 +77,7 @@ export const AdminProducts = () => {
             disponible_mayorista: true,
             imagenes: [],
             imagen_principal: '',
+            colores: [],
             curva_minima: true
         });
         setTallesForm([
@@ -195,7 +204,7 @@ export const AdminProducts = () => {
         if (!window.confirm(`¿Quieres crear una copia de "${product.nombre}"?`)) return;
 
         // Mostrar estado de carga (opcional, podrías usar un toast)
-        // Mostrar estado de carga (opcional, podrías usar un toast)
+
         // const originalText = document.getElementById(`dup-btn-${product.id}`)?.innerText;
 
         try {
@@ -293,15 +302,29 @@ export const AdminProducts = () => {
                             <thead className="bg-gray-50/50">
                                 <tr>
                                     <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Producto</th>
-                                    <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Precios Duales</th>
-                                    <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Stock Total</th>
-                                    <th className="px-6 py-5 text-center text-xs font-black text-gray-400 uppercase tracking-widest">Visible?</th>
-                                    <th className="px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Acciones</th>
+                                    <th className="hidden md:table-cell px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Precios Duales</th>
+                                    <th className="hidden md:table-cell px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Stock Total</th>
+                                    <th className="hidden md:table-cell px-6 py-5 text-center text-xs font-black text-gray-400 uppercase tracking-widest">Visible?</th>
+                                    <th className="hidden md:table-cell px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
                                 {products.map((product) => (
-                                    <tr key={product.id} className="hover:bg-blue-50/30 transition-colors">
+                                    <tr
+                                        key={product.id}
+                                        className="hover:bg-blue-50/30 transition-colors cursor-pointer md:cursor-default"
+                                        onClick={(e) => {
+                                            // Prevent opening modal if clicking specific interactive elements
+                                            if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input')) return;
+
+                                            // Only open on mobile/small screens if you want, or always. 
+                                            // User requested for mobile, but let's make it responsive.
+                                            // Actually, the user asked specifically: "if I click in mobile version it expands a modal"
+                                            if (window.innerWidth < 768) {
+                                                setSelectedProduct(product);
+                                            }
+                                        }}
+                                    >
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="h-14 w-14 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-gray-100">
@@ -317,7 +340,7 @@ export const AdminProducts = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] font-black bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">MIN</span>
@@ -329,7 +352,7 @@ export const AdminProducts = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                                             <div className="flex flex-col">
                                                 <span className={`text-sm font-bold ${product.stock_total <= product.stock_minimo ? 'text-red-600' : 'text-gray-900'}`}>
                                                     {product.stock_total} unidades
@@ -344,7 +367,7 @@ export const AdminProducts = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-center">
                                             <button
                                                 onClick={() => handleToggleVisibility(product)}
                                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${product.visible_publico ? 'bg-green-500' : 'bg-gray-200'}`}
@@ -352,7 +375,7 @@ export const AdminProducts = () => {
                                                 <span className={`${product.visible_publico ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
                                             </button>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
                                                 <button
                                                     onClick={() => handleEdit(product)}
@@ -524,17 +547,83 @@ export const AdminProducts = () => {
                                                 )}
                                             </div>
 
+
                                             <div className="sm:col-span-2">
                                                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Descripción Pública</label>
                                                 <textarea
-                                                    rows={4}
-                                                    className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600"
-                                                    placeholder="Describí los detalles de confección..."
+                                                    className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-medium"
+                                                    placeholder="Descripción detallada del producto para la tienda..."
+                                                    rows={3}
                                                     value={formData.descripcion_publica}
                                                     onChange={e => setFormData({ ...formData, descripcion_publica: e.target.value })}
                                                 />
                                             </div>
+
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Colores Disponibles</label>
+                                                <div className="flex gap-2 mb-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre (ej: Rojo Intenso)"
+                                                        className="flex-1 rounded-xl border-gray-200 bg-gray-50/50 py-2 px-3 focus:bg-white focus:ring-blue-600 focus:border-blue-600 text-sm font-bold"
+                                                        value={newColorName}
+                                                        onChange={(e) => setNewColorName(e.target.value)}
+                                                    />
+                                                    <input
+                                                        type="color"
+                                                        className="h-10 w-10 rounded-lg cursor-pointer border-0 p-0"
+                                                        value={newColorHex}
+                                                        onChange={(e) => {
+                                                            const hex = e.target.value;
+                                                            setNewColorHex(hex);
+                                                            setNewColorName(getColorName(hex));
+                                                        }}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (newColorName) {
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    colores: [...(formData.colores || []), { nombre: newColorName, hex: newColorHex }]
+                                                                });
+                                                                setNewColorName('');
+                                                                setNewColorHex('#000000');
+                                                            }
+                                                        }}
+                                                        className="bg-gray-900 text-white px-4 rounded-xl font-bold text-xs uppercase hover:bg-gray-800 transition-colors"
+                                                    >
+                                                        Agregar
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {formData.colores?.map((color, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2 bg-white border border-gray-200 pl-1 pr-3 py-1 rounded-full shadow-sm">
+                                                            <span className="w-6 h-6 rounded-full border border-gray-100" style={{ backgroundColor: color.hex }}></span>
+                                                            <span className="text-xs font-bold text-gray-700">{color.nombre}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFormData({
+                                                                        ...formData,
+                                                                        colores: formData.colores?.filter((_, i) => i !== idx)
+                                                                    });
+                                                                }}
+                                                                className="ml-1 text-gray-400 hover:text-red-500"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {(!formData.colores || formData.colores.length === 0) && (
+                                                        <span className="text-xs text-gray-400 italic">No hay colores definidos</span>
+                                                    )}
+                                                </div>
+
+                                            </div>
                                         </div>
+
                                     </div>
                                 )}
 
@@ -713,12 +802,116 @@ export const AdminProducts = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div >
             )}
-        </div>
+
+            {/* Mobile Details Modal */}
+            {
+                selectedProduct && (
+                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+                        <div className="bg-white rounded-t-[2rem] sm:rounded-[2rem] w-full max-w-lg flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[85vh]">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-black text-gray-900">{selectedProduct.nombre}</h3>
+                                    <p className="text-sm font-bold text-gray-400">{selectedProduct.codigo}</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedProduct(null)}
+                                    className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-6 overflow-y-auto">
+                                {/* Images */}
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {(selectedProduct.imagenes || []).map((img, i) => (
+                                        <img key={i} src={img} className="h-24 w-24 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
+                                    ))}
+                                    {(!selectedProduct.imagenes || selectedProduct.imagenes.length === 0) && (
+                                        <div className="h-24 w-24 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100">
+                                            <ImageIcon className="h-8 w-8 text-gray-300" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Prices */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                        <p className="text-xs font-black text-gray-400 uppercase mb-1">Precio Minorista</p>
+                                        <p className="text-lg font-black text-gray-900">${selectedProduct.precio_minorista?.toLocaleString()}</p>
+                                    </div>
+                                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                                        <p className="text-xs font-black text-blue-400 uppercase mb-1">Precio Mayorista</p>
+                                        <p className="text-lg font-black text-blue-700">${selectedProduct.precio_mayorista_curva?.toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Stock & Talles */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest">Inventario</h4>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {selectedProduct.producto_talles.sort((a, b) => a.orden - b.orden).map(t => (
+                                            <div key={t.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                                <span className="font-bold text-gray-600">{t.talla_codigo}</span>
+                                                <span className={`font-black ${t.stock <= t.stock_minimo ? 'text-red-500' : 'text-gray-900'}`}>
+                                                    {t.stock} u.
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Visibility Toggle */}
+                                <div className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl">
+                                    <span className="font-bold text-gray-700">Visible al Público</span>
+                                    <button
+                                        onClick={() => selectedProduct && handleToggleVisibility(selectedProduct)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${selectedProduct.visible_publico ? 'bg-green-500' : 'bg-gray-200'}`}
+                                    >
+                                        <span className={`${selectedProduct.visible_publico ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+                                    </button>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="grid grid-cols-3 gap-3 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            if (selectedProduct) handleEdit(selectedProduct);
+                                            setSelectedProduct(null);
+                                        }}
+                                        className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-600 rounded-2xl font-bold text-xs gap-2 hover:bg-blue-100"
+                                    >
+                                        <Pencil className="h-5 w-5" />
+                                        Editar
+                                    </button>
+                                    <button
+                                        onClick={() => selectedProduct && handleDuplicate(selectedProduct)}
+                                        className="flex flex-col items-center justify-center p-3 bg-green-50 text-green-600 rounded-2xl font-bold text-xs gap-2 hover:bg-green-100"
+                                    >
+                                        <Copy className="h-5 w-5" />
+                                        Duplicar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (selectedProduct) handleDelete(selectedProduct.id);
+                                            setSelectedProduct(null);
+                                        }}
+                                        className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl font-bold text-xs gap-2 hover:bg-red-100"
+                                    >
+                                        <Trash2 className="h-5 w-5" />
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
-// Internal imports needed for the pricing section UI icons
-// Internal imports needed for the pricing section UI icons
-import { ShoppingBag, Copy } from 'lucide-react'; // Agregamos 'Copy' aquí
+
+

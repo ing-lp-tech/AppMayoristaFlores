@@ -8,6 +8,7 @@ export interface CartItemMinorista {
     id: string; // SKU or dynamic ID
     producto: Producto;
     talle: ProductoTalla;
+    color?: { nombre: string; hex: string }; // Added color
     cantidad: number;
     precio_unitario: number;
 }
@@ -15,11 +16,15 @@ export interface CartItemMinorista {
 export interface CartItemMayorista {
     id: string; // product_id
     producto: Producto;
-    nombre_curva: string;
-    talles_incluidos: string[];
-    cantidad_curvas: number;
-    precio_curva: number; // total price of the curve
+    variaciones: {
+        talle: string;
+        color: { nombre: string; hex: string };
+        cantidad: number;
+    }[];
+    cantidad_total: number;
+    precio_total: number;
 }
+
 
 interface CartDualState {
     mode: CartMode;
@@ -30,14 +35,13 @@ interface CartDualState {
     setMode: (mode: CartMode) => void;
 
     // Minorista Actions
-    addMinoristaItem: (producto: Producto, talle: ProductoTalla, cantidad?: number) => void;
+    addMinoristaItem: (producto: Producto, talle: ProductoTalla, cantidad?: number, color?: { nombre: string; hex: string }) => void;
     updateMinoristaItem: (id: string, cantidad: number) => void;
     removeMinoristaItem: (id: string) => void;
 
-    // Mayorista Actions
-    addCurvaItem: (producto: Producto, talles: ProductoTalla[], cantidad_curvas?: number) => void;
-    updateCurvaItem: (id: string, cantidad_curvas: number) => void;
-    removeCurvaItem: (id: string) => void;
+    // Mayorista Actions (Flexible)
+    addMayoristaItem: (producto: Producto, variaciones: { talle: string; color: { nombre: string; hex: string }; cantidad: number }[]) => void;
+    removeMayoristaItem: (id: string) => void;
 
     // Helpers
     clearCart: () => void;
@@ -53,9 +57,10 @@ export const useCartDualStore = create<CartDualState>()(
 
             setMode: (mode) => set({ mode }),
 
-            addMinoristaItem: (producto, talle, cantidad = 1) => {
+            addMinoristaItem: (producto, talle, cantidad = 1, color) => {
                 const items = get().itemsMinorista;
-                const itemId = `${producto.id}-${talle.id}`;
+                const colorSuffix = color ? `-${color.nombre}` : '';
+                const itemId = `${producto.id}-${talle.id}${colorSuffix}`;
                 const existing = items.find(i => i.id === itemId);
 
                 if (existing) {
@@ -70,6 +75,7 @@ export const useCartDualStore = create<CartDualState>()(
                             id: itemId,
                             producto,
                             talle,
+                            color, // Save color
                             cantidad,
                             precio_unitario: producto.precio_minorista
                         }]
@@ -91,18 +97,47 @@ export const useCartDualStore = create<CartDualState>()(
                 });
             },
 
-            addCurvaItem: (producto, talles, cantidad_curvas = 1) => {
+            addMayoristaItem: (producto, variaciones) => {
                 const items = get().itemsMayorista;
                 const itemId = producto.id;
                 const existing = items.find(i => i.id === itemId);
 
-                // Validation: A curve must include all sizes marked 'incluido_curva'
-                const tallesCodigos = talles.map(t => t.talla_codigo);
+                // Calculate base unit price (Derived from Curve Price if needed, or maintain curve logic)
+                const talles = producto.producto_talles ?? [];
+                const tallesCurvaCount = talles.filter(t => t.incluido_curva).length || 1;
+                const unitPrice = producto.precio_mayorista_curva / tallesCurvaCount;
+
+                // Consolidate Variations
+                const consolidate = (vars: typeof variaciones) => {
+                    const map = new Map<string, typeof variaciones[0]>();
+                    vars.forEach(v => {
+                        const key = `${v.color.nombre}-${v.talle}`;
+                        const curr = map.get(key);
+                        if (curr) {
+                            curr.cantidad += v.cantidad;
+                        } else {
+                            map.set(key, { ...v });
+                        }
+                    });
+                    return Array.from(map.values());
+                };
+
+                const newVariations = existing
+                    ? consolidate([...existing.variaciones, ...variaciones])
+                    : consolidate(variaciones);
+
+                const totalUnits = newVariations.reduce((acc, v) => acc + v.cantidad, 0);
+                const totalPrice = totalUnits * unitPrice; // Pricing based on units
 
                 if (existing) {
                     set({
                         itemsMayorista: items.map(i =>
-                            i.id === itemId ? { ...i, cantidad_curvas: i.cantidad_curvas + cantidad_curvas } : i
+                            i.id === itemId ? {
+                                ...i,
+                                variaciones: newVariations,
+                                cantidad_total: totalUnits,
+                                precio_total: totalPrice
+                            } : i
                         )
                     });
                 } else {
@@ -110,24 +145,15 @@ export const useCartDualStore = create<CartDualState>()(
                         itemsMayorista: [...items, {
                             id: itemId,
                             producto,
-                            nombre_curva: 'Curva Completa',
-                            talles_incluidos: tallesCodigos,
-                            cantidad_curvas,
-                            precio_curva: producto.precio_mayorista_curva
+                            variaciones: newVariations,
+                            cantidad_total: totalUnits,
+                            precio_total: totalPrice
                         }]
                     });
                 }
             },
 
-            updateCurvaItem: (id, cantidad_curvas) => {
-                set({
-                    itemsMayorista: get().itemsMayorista.map(i =>
-                        i.id === id ? { ...i, cantidad_curvas: Math.max(1, cantidad_curvas) } : i
-                    )
-                });
-            },
-
-            removeCurvaItem: (id) => {
+            removeMayoristaItem: (id) => {
                 set({
                     itemsMayorista: get().itemsMayorista.filter(i => i.id !== id)
                 });
@@ -138,7 +164,7 @@ export const useCartDualStore = create<CartDualState>()(
             getTotals: () => {
                 const { itemsMinorista, itemsMayorista } = get();
                 const subtotalMinorista = itemsMinorista.reduce((sum, i) => sum + (i.precio_unitario * i.cantidad), 0);
-                const subtotalMayorista = itemsMayorista.reduce((sum, i) => sum + (i.precio_curva * i.cantidad_curvas), 0);
+                const subtotalMayorista = itemsMayorista.reduce((sum, i) => sum + i.precio_total, 0);
                 const total = subtotalMinorista + subtotalMayorista;
                 const count = itemsMinorista.length + itemsMayorista.length;
 

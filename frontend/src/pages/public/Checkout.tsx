@@ -90,15 +90,19 @@ export const Checkout = () => {
         try {
             // 1. Create Pedido Header
             const pedidoData = {
-                tipo: mode,
+                codigo_pedido: `PED-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+                tipo_cliente_pedido: mode,
                 cliente_nombre: `${form.nombre} ${form.apellido}`,
-                cliente_email: form.email,
-                cliente_whatsapp: form.whatsapp,
-                direccion_envio: `${form.direccion}, ${form.ciudad}`,
+                cliente_email: form.email || null,
+                cliente_telefono: form.whatsapp,
+                tipo_factura: 'consumidor_final',
+                direccion_envio: form.direccion,
+                ciudad_envio: form.ciudad,
+                subtotal_minorista: isWholesale ? 0 : subtotal,
+                subtotal_mayorista: isWholesale ? subtotal : 0,
                 total: finalTotal,
-                subtotal: subtotal,
-                impuestos: 0,
-                estado: 'pendiente'
+                estado: 'pendiente',
+                estado_pago: 'pendiente'
             };
 
             const { data: pedido, error: pedidoError } = await supabase
@@ -115,11 +119,11 @@ export const Checkout = () => {
                 const mayoristaItems = itemsMayorista.map(item => ({
                     pedido_id: pedido.id,
                     producto_id: item.producto.id,
-                    curva_nombre: item.nombre_curva,
-                    cantidad: item.cantidad_curvas,
-                    precio_unitario_curva: item.precio_curva,
-                    subtotal: item.precio_curva * item.cantidad_curvas,
-                    composicion_curva: item.talles_incluidos
+                    nombre_curva: 'Surtido Personalizado',
+                    talles_incluidos: Array.from(new Set(item.variaciones.map(v => v.talle))),
+                    cantidad_curvas: item.cantidad_total,
+                    precio_curva: item.precio_total,
+                    subtotal: item.precio_total
                 }));
 
                 const { error: itemsError } = await supabase
@@ -128,18 +132,12 @@ export const Checkout = () => {
 
                 if (itemsError) throw itemsError;
 
-                // Simple Stock Update (ideally this should be an RPC or Trigger)
-                for (const _item of itemsMayorista) {
-                    // Logic to decrement stock for each talle in the curve
-                    // This is complex for a raw SQL loop, usually done via RPC
-                }
-
             } else {
                 // Minorista
                 const minoristaItems = itemsMinorista.map(item => ({
                     pedido_id: pedido.id,
                     producto_id: item.producto.id,
-                    talla_id: item.talle.id,
+                    talle_id: item.talle.id,
                     cantidad: item.cantidad,
                     precio_unitario: item.precio_unitario,
                     subtotal: item.precio_unitario * item.cantidad
@@ -299,16 +297,47 @@ export const Checkout = () => {
                                                 <h4 className="text-sm font-black text-gray-900 line-clamp-1">{item.producto.nombre}</h4>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     {isWholesale ? (
-                                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">CURVA {item.talles_incluidos?.length || 0}u.</span>
+                                                        <div className="flex flex-col gap-1 items-start mt-1">
+                                                            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase mb-1">
+                                                                Surtido {item.cantidad_total}u.
+                                                            </span>
+                                                            <div className="flex flex-col gap-1 w-full">
+                                                                {/* Sliced to avoid too long lists, or scrollable */}
+                                                                {item.variaciones.slice(0, 5).map((v: any, idx: number) => (
+                                                                    <div key={idx} className="flex items-center justify-between text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                                                                        <span className="flex items-center gap-1">
+                                                                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: v.color.hex }} />
+                                                                            <span className="font-bold">{v.color.nombre}</span>
+                                                                        </span>
+                                                                        <span>{v.cantidad}x <b>{v.talle}</b></span>
+                                                                    </div>
+                                                                ))}
+                                                                {item.variaciones.length > 5 && (
+                                                                    <span className="text-[9px] text-gray-400 pl-1">
+                                                                        + {item.variaciones.length - 5} variaciones más...
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     ) : (
-                                                        <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">TALLE {item.talle.talla_codigo}</span>
+                                                        <div className="flex gap-2">
+                                                            <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">TALLE {item.talle.talla_codigo}</span>
+                                                            {item.color && (
+                                                                <span className="text-[10px] font-black text-gray-700 bg-gray-50 px-2 py-0.5 rounded uppercase flex items-center gap-1">
+                                                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color.hex }} />
+                                                                    {item.color.nombre}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
-                                                    <span className="text-[10px] font-bold text-gray-400">Cant: {isWholesale ? item.cantidad_curvas : item.cantidad}</span>
+                                                    <span className="text-[10px] font-bold text-gray-400 mt-1">
+                                                        {isWholesale ? '' : `Cant: ${item.cantidad}`}
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-sm font-black text-gray-900">
-                                                    ${(isWholesale ? (item.precio_curva * item.cantidad_curvas) : (item.precio_unitario * item.cantidad)).toLocaleString()}
+                                                    ${(isWholesale ? item.precio_total : (item.precio_unitario * item.cantidad)).toLocaleString()}
                                                 </div>
                                             </div>
                                         </div>
@@ -355,7 +384,7 @@ export const Checkout = () => {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 };

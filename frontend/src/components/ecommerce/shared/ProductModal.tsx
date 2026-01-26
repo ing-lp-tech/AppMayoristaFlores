@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ShoppingCart, Check, Package, Info, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCartDualStore } from '../../../store/cartDualStore';
+import { categoryService } from '../../../services/productService';
 import type { Producto, ProductoTalla } from '../../../types';
 
 interface ProductModalProps {
@@ -10,60 +11,103 @@ interface ProductModalProps {
 }
 
 export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) => {
-    const { mode, addMinoristaItem, addCurvaItem } = useCartDualStore();
+    const { mode, addMinoristaItem, addMayoristaItem } = useCartDualStore();
     const [selectedSizeId, setSelectedSizeId] = useState<string>('');
+    const [selectedColor, setSelectedColor] = useState<{ nombre: string; hex: string } | undefined>(undefined);
+    const [categoryName, setCategoryName] = useState('');
     const [added, setAdded] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    // Carousel Logic
-    useEffect(() => {
-        if (!isOpen) {
-            setCurrentImageIndex(0); // Reset on close
-            return;
-        }
-
-        // Auto-play only if multiple images
-        if (product.imagenes && product.imagenes.length > 1) {
-            const interval = setInterval(() => {
-                setCurrentImageIndex(prev => (prev + 1) % product.imagenes!.length);
-            }, 4000); // 4 seconds
-            return () => clearInterval(interval);
-        }
-    }, [isOpen, product.imagenes]);
-
-    const nextImage = () => {
-        if (product.imagenes && product.imagenes.length > 0) {
-            setCurrentImageIndex(prev => (prev + 1) % product.imagenes!.length);
-        }
+    const prevImage = () => {
+        setCurrentImageIndex(prev => prev === 0 ? (product.imagenes.length - 1) : prev - 1);
     };
 
-    const prevImage = () => {
-        if (product.imagenes && product.imagenes.length > 0) {
-            setCurrentImageIndex(prev => (prev - 1 + product.imagenes!.length) % product.imagenes!.length);
-        }
+    const nextImage = () => {
+        setCurrentImageIndex(prev => prev === (product.imagenes.length - 1) ? 0 : prev + 1);
+    };
+
+    // Matrix State for Wholesale: Map "colorName-talleId" -> quantity
+    const [matrixQuantities, setMatrixQuantities] = useState<Record<string, number>>({});
+
+    // ... (keep useEffects)
+
+    // Helper to update matrix
+    const handleQuantityChange = (colorName: string, talleId: string, delta: number) => {
+        const key = `${colorName}::${talleId}`;
+        setMatrixQuantities(prev => {
+            const current = prev[key] || 0;
+            const newVal = Math.max(0, current + delta);
+            if (newVal === 0) {
+                const { [key]: _, ...rest } = prev;
+                return rest;
+            }
+            return { ...prev, [key]: newVal };
+        });
     };
 
     // Derived values
     const isWholesale = mode === 'mayorista';
     const tallesDisponibles = product.producto_talles;
-    const tallesCurva = tallesDisponibles.filter(t => t.incluido_curva);
-    const selectedSize = tallesDisponibles.find(t => t.id === selectedSizeId);
+    // For matrix, we show ALL talles, typically sorted
+    const sortedTalles = [...tallesDisponibles].sort((a, b) => a.orden - b.orden);
+
+    // Default color if none
+    const effectiveColors = product.colores && product.colores.length > 0
+        ? product.colores
+        : [{ nombre: 'Único', hex: '#000000' }];
+
+    // Wholesale Totals
+    const totalMatrixUnits = Object.values(matrixQuantities).reduce((a, b) => a + b, 0);
+    // Unit price derivation
+    const curveSize = tallesDisponibles.filter(t => t.incluido_curva).length || 1;
+    const unitPriceMayorista = product.precio_mayorista_curva / curveSize;
 
     if (!isOpen) return null;
 
     const handleAddToCart = () => {
         if (isWholesale) {
-            // Add Curve
-            // In a real system, we'd check if all sizes in the curve have at least 1 unit of stock
-            addCurvaItem(product, tallesCurva, 1);
+            // Build variations list
+            const variations: { talle: string; color: { nombre: string; hex: string }; cantidad: number }[] = [];
+
+            Object.entries(matrixQuantities).forEach(([key, qty]) => {
+                const [colorName, talleId] = key.split('::');
+                const talle = tallesDisponibles.find(t => t.id === talleId);
+                const color = effectiveColors.find(c => c.nombre === colorName);
+
+                if (talle && color && qty > 0) {
+                    variations.push({
+                        talle: talle.talla_codigo,
+                        color: { nombre: color.nombre, hex: color.hex },
+                        cantidad: qty
+                    });
+                }
+            });
+
+            if (variations.length === 0) {
+                alert('Por favor selecciona al menos una unidad');
+                return;
+            }
+
+            addMayoristaItem(product, variations);
             setAdded(true);
-            setTimeout(() => { setAdded(false); onClose(); }, 1500);
+            setTimeout(() => {
+                setAdded(false);
+                onClose();
+                setMatrixQuantities({}); // Reset
+            }, 1000);
         } else {
+            // ... (keep existing retail logic)
             // Add Retail Unit
             if (!selectedSizeId) {
                 alert('Por favor selecciona un talle');
                 return;
             }
+            if (product.colores && product.colores.length > 0 && !selectedColor) {
+                alert('Por favor selecciona un color');
+                return;
+            }
+
+            const selectedSize = tallesDisponibles.find(t => t.id === selectedSizeId);
             if (selectedSize && selectedSize.stock <= 0) {
                 alert('Lo sentimos, este talle no tiene stock');
                 return;
@@ -71,7 +115,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
 
             const fullTalle = tallesDisponibles.find(t => t.id === selectedSizeId);
             if (fullTalle) {
-                addMinoristaItem(product, fullTalle, 1);
+                addMinoristaItem(product, fullTalle, 1, selectedColor);
                 setAdded(true);
                 setTimeout(() => { setAdded(false); onClose(); }, 1500);
             }
@@ -98,7 +142,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                     <div className="grid grid-cols-1 md:grid-cols-2">
                         {/* LEFT: Image Gallery / Carousel */}
                         <div className="aspect-[4/5] bg-gray-50 relative group">
-                            {/* Carousel Content */}
+                            {/* ... (keep image rendering logic) ... */}
                             <div className="absolute inset-0 w-full h-full">
                                 {product.imagenes && product.imagenes.length > 0 ? (
                                     <>
@@ -108,7 +152,6 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                             className="w-full h-full object-cover transition-all duration-500"
                                         />
 
-                                        {/* Navigation Arrows - Only if > 1 image */}
                                         {product.imagenes.length > 1 && (
                                             <>
                                                 <button
@@ -123,8 +166,6 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                                 >
                                                     <ChevronRight className="h-6 w-6" />
                                                 </button>
-
-                                                {/* Dots Indicator */}
                                                 <div className="absolute bottom-24 left-0 right-0 flex justify-center gap-2 z-10">
                                                     {product.imagenes.map((_, idx) => (
                                                         <button
@@ -141,7 +182,6 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                         )}
                                     </>
                                 ) : (
-                                    // Fallback for NO images
                                     <img
                                         src={product.imagen_principal || 'https://via.placeholder.com/600x800'}
                                         alt={product.nombre}
@@ -150,7 +190,6 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                 )}
                             </div>
 
-                            {/* Overlay for price comparison */}
                             <div className="absolute bottom-6 left-6 right-6 z-20">
                                 <div className="bg-white/90 backdrop-blur-lg p-4 rounded-2xl shadow-xl border border-white/50">
                                     <div className="flex justify-between items-center">
@@ -160,7 +199,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoría</span>
-                                            <span className="font-bold text-blue-600">ID: {product.categoria_id?.slice(0, 5) || 'TEXTIL'}</span>
+                                            <span className="font-bold text-blue-600">{categoryName || product.categoria_id?.slice(0, 5) || 'TEXTIL'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -168,7 +207,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                         </div>
 
                         {/* RIGHT: Product Detail & Selection */}
-                        <div className="p-8 md:p-12 flex flex-col justify-between bg-white">
+                        <div className="p-8 md:p-12 flex flex-col justify-between bg-white h-full overflow-y-auto custom-scrollbar">
                             <div>
                                 <h3 className="text-3xl font-black text-gray-900 mb-2 leading-none" id="modal-title">
                                     {product.nombre}
@@ -180,8 +219,8 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                         <span className="text-2xl font-black text-gray-900">${product.precio_minorista.toLocaleString()}</span>
                                     </div>
                                     <div className={`p-4 rounded-2xl border-2 transition-all ${isWholesale ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 bg-gray-50 opacity-40'}`}>
-                                        <span className="block text-[10px] font-black text-blue-400 uppercase mb-1">Mayorista (Curva)</span>
-                                        <span className="text-2xl font-black text-blue-900">${product.precio_mayorista_curva.toLocaleString()}</span>
+                                        <span className="block text-[10px] font-black text-blue-400 uppercase mb-1">Mayorista (Unitario)</span>
+                                        <span className="text-2xl font-black text-blue-900">${unitPriceMayorista.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                     </div>
                                 </div>
 
@@ -195,41 +234,61 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                 {/* Dynamic Section: Selection */}
                                 <div className="mt-10 pt-10 border-t border-gray-100">
                                     {isWholesale ? (
-                                        <div className="space-y-6">
+                                        <div className="space-y-6 animate-in slide-in-from-right duration-500">
                                             <div className="flex items-center justify-between">
                                                 <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
                                                     <Package className="h-4 w-4 text-blue-600" />
-                                                    Composición de la Curva
+                                                    Armá tu pedido (Matriz)
                                                 </h4>
-                                                <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg uppercase">
-                                                    Pack de {tallesCurva.length} Unidades
+                                                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg uppercase">
+                                                    Total: {totalMatrixUnits} un.
                                                 </span>
                                             </div>
 
-                                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                                                {tallesCurva.map(t => (
-                                                    <div key={t.id} className="aspect-square flex flex-col items-center justify-center border-2 border-blue-100 rounded-xl bg-blue-50/30">
-                                                        <span className="text-xs font-black text-blue-700">{t.talla_codigo}</span>
-                                                        <span className="text-[10px] text-blue-400 font-bold">1u.</span>
+                                            <div className="bg-gray-50 rounded-2xl p-4 space-y-4 max-h-[300px] overflow-y-auto border border-gray-100">
+                                                {effectiveColors.map((color, idx) => (
+                                                    <div key={idx} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-50">
+                                                            <div className="w-4 h-4 rounded-full border border-gray-200 shadow-sm" style={{ backgroundColor: color.hex }} />
+                                                            <span className="text-xs font-bold text-gray-800">{color.nombre}</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-4 gap-2">
+                                                            {sortedTalles.map(talle => {
+                                                                const qty = matrixQuantities[`${color.nombre}::${talle.id}`] || 0;
+                                                                return (
+                                                                    <div key={talle.id} className="flex flex-col gap-1">
+                                                                        <span className="text-[10px] text-center text-gray-400 font-bold uppercase">{talle.talla_codigo}</span>
+                                                                        <div className="flex items-center justify-center bg-gray-50 rounded-lg p-1 border border-gray-200">
+                                                                            <button
+                                                                                onClick={() => handleQuantityChange(color.nombre, talle.id, -1)}
+                                                                                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                                            >-</button>
+                                                                            <span className={`w-6 text-center text-xs font-bold ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}`}>{qty}</span>
+                                                                            <button
+                                                                                onClick={() => handleQuantityChange(color.nombre, talle.id, 1)}
+                                                                                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                                            >+</button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
 
-                                            <div className="p-4 bg-gray-50 rounded-2xl flex items-start gap-4">
-                                                <Info className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
-                                                <p className="text-[11px] text-gray-500 leading-tight">
-                                                    La curva mayorista incluye una unidad de cada talle especificado arriba.
-                                                    El precio especial se aplica por el pack completo.
-                                                </p>
+                                            <div className="flex justify-between items-center text-sm font-bold text-gray-600">
+                                                <span>Total Estimado:</span>
+                                                <span className="text-xl font-black text-blue-600">${(totalMatrixUnits * unitPriceMayorista).toLocaleString()}</span>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="space-y-6">
                                             <div className="flex items-center justify-between">
                                                 <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest">Seleccionar Talle</h4>
-                                                {selectedSize && (
-                                                    <span className={`text-[10px] font-bold uppercase transition-colors ${selectedSize.stock > 10 ? 'text-green-500' : 'text-amber-500'}`}>
-                                                        {selectedSize.stock} disponibles
+                                                {selectedSizeId && (
+                                                    <span className={`text-[10px] font-bold uppercase transition-colors ${sortedTalles.find(t => t.id === selectedSizeId)?.stock! > 10 ? 'text-green-500' : 'text-amber-500'}`}>
+                                                        {sortedTalles.find(t => t.id === selectedSizeId)?.stock} disponibles
                                                     </span>
                                                 )}
                                             </div>
@@ -252,7 +311,39 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                                 ))}
                                             </div>
 
-                                            {selectedSize && selectedSize.stock <= 3 && selectedSize.stock > 0 && (
+                                            {/* Color Selection - Only if product has colors and retail mode */}
+                                            {product.colores && product.colores.length > 0 && (
+                                                <div className="mt-4">
+                                                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-3">Seleccionar Color</h4>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {product.colores.map((c, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => setSelectedColor(c)}
+                                                                className={`group relative flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border-2 transition-all ${selectedColor?.nombre === c.nombre
+                                                                    ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100'
+                                                                    : 'border-transparent hover:border-gray-200 bg-gray-50'
+                                                                    }`}
+                                                            >
+                                                                <span
+                                                                    className="w-6 h-6 rounded-full border border-gray-200 shadow-sm"
+                                                                    style={{ backgroundColor: c.hex }}
+                                                                />
+                                                                <span className={`text-xs font-bold ${selectedColor?.nombre === c.nombre ? 'text-blue-700' : 'text-gray-600'}`}>
+                                                                    {c.nombre}
+                                                                </span>
+                                                                {selectedColor?.nombre === c.nombre && (
+                                                                    <div className="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full p-0.5">
+                                                                        <Check className="h-2 w-2" />
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {selectedSizeId && tallesDisponibles.find(t => t.id === selectedSizeId)?.stock! <= 3 && tallesDisponibles.find(t => t.id === selectedSizeId)?.stock! > 0 && (
                                                 <div className="flex items-center gap-2 text-amber-600 animate-pulse">
                                                     <AlertCircle className="h-4 w-4" />
                                                     <span className="text-xs font-bold">¡Últimas unidades disponibles!</span>
@@ -283,7 +374,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                     ) : (
                                         <>
                                             <ShoppingCart className="h-6 w-6" />
-                                            {isWholesale ? 'COMPRAR CURVA COMPLETA' : 'AGREGAR AL CARRITO'}
+                                            {isWholesale ? 'AGREGAR SELECCIÓN' : 'AGREGAR AL CARRITO'}
                                         </>
                                     )}
                                 </button>

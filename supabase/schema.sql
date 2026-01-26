@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS public.rollos_tela (
     metros_iniciales numeric not null,
     metros_restantes numeric not null,
     costo_por_metro numeric not null,
-    proveedor_id uuid references public.proveedores(id),
+    proveedor_id uuid references public.proveedores(id) on delete set null,
     estado text default 'disponible',
     creado_en timestamptz default now()
 );
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS public.tipos_tela (
     id uuid default gen_random_uuid() primary key,
     nombre text not null unique,
     composicion text,
-    proveedor_id uuid references public.proveedores(id),
+    proveedor_id uuid references public.proveedores(id) on delete set null,
     onza text,
     precio_por_kilo numeric,
     creado_en timestamptz default now()
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.insumos (
     stock_actual numeric default 0,
     unidad_medida text not null,
     costo_unitario numeric,
-    proveedor_id uuid references public.proveedores(id),
+    proveedor_id uuid references public.proveedores(id) on delete set null,
     creado_en timestamptz default now()
 );
 

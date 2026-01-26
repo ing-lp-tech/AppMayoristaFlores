@@ -14,8 +14,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         itemsMayorista,
         updateMinoristaItem,
         removeMinoristaItem,
-        updateCurvaItem,
-        removeCurvaItem,
+        removeMayoristaItem,
         getTotals
     } = useCartDualStore();
 
@@ -127,46 +126,48 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                         {itemsMayorista.length > 0 && (
                                             <div>
                                                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                    <Package className="h-3 w-3" /> Curvas Completas
+                                                    <Package className="h-3 w-3" /> Pedidos Mayoristas
                                                 </h3>
                                                 <ul role="list" className="divide-y divide-gray-100">
-                                                    {itemsMayorista.map((curva) => (
-                                                        <li key={curva.id} className="py-4 flex">
-                                                            <div className="flex-shrink-0 w-16 h-16 border border-blue-100 rounded-md overflow-hidden bg-blue-50 flex items-center justify-center">
-                                                                <Package className="h-8 w-8 text-blue-200" />
+                                                    {itemsMayorista.map((item) => (
+                                                        <li key={item.id} className="py-4 flex flex-col gap-3">
+                                                            <div className="flex items-start gap-4">
+                                                                <div className="flex-shrink-0 w-16 h-16 border border-blue-100 rounded-md overflow-hidden bg-blue-50 flex items-center justify-center">
+                                                                    {item.producto.imagen_principal ? (
+                                                                        <img src={item.producto.imagen_principal} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <Package className="h-8 w-8 text-blue-200" />
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="flex-1 flex flex-col">
+                                                                    <div className="flex justify-between text-base font-medium text-gray-900">
+                                                                        <h4 className="text-sm font-bold">{item.producto.nombre}</h4>
+                                                                        <p className="text-sm text-blue-600 font-bold">${(item.precio_total || 0).toLocaleString()}</p>
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-500 mt-1">{item.cantidad_total || 0} unidades en total</p>
+                                                                </div>
+
+                                                                <button onClick={() => removeMayoristaItem(item.id)} className="text-red-400 hover:text-red-600 p-1">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
                                                             </div>
 
-                                                            <div className="ml-4 flex-1 flex flex-col">
-                                                                <div className="flex justify-between text-base font-medium text-gray-900">
-                                                                    <h4 className="text-sm font-bold">{curva.producto.nombre}</h4>
-                                                                    <p className="text-sm text-blue-600 font-bold">${(curva.precio_curva * curva.cantidad_curvas).toLocaleString()}</p>
-                                                                </div>
-                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                    {curva.talles_incluidos.map(t => (
-                                                                        <span key={t} className="text-[10px] bg-blue-50 text-blue-700 px-1 rounded border border-blue-100">{t}</span>
-                                                                    ))}
-                                                                </div>
-
-                                                                <div className="flex-1 flex items-end justify-between text-sm mt-3">
-                                                                    <div className="flex items-center border border-blue-200 rounded-lg">
-                                                                        <button
-                                                                            onClick={() => updateCurvaItem(curva.id, curva.cantidad_curvas - 1)}
-                                                                            className="p-1 hover:bg-blue-50 text-blue-600"
-                                                                        >
-                                                                            <Minus className="h-3 w-3" />
-                                                                        </button>
-                                                                        <span className="px-2 font-bold text-blue-700 w-8 text-center">{curva.cantidad_curvas}</span>
-                                                                        <button
-                                                                            onClick={() => updateCurvaItem(curva.id, curva.cantidad_curvas + 1)}
-                                                                            className="p-1 hover:bg-blue-50 text-blue-600"
-                                                                        >
-                                                                            <Plus className="h-3 w-3" />
-                                                                        </button>
-                                                                    </div>
-                                                                    <button onClick={() => removeCurvaItem(curva.id)} className="text-red-400 hover:text-red-600">
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </button>
-                                                                </div>
+                                                            {/* Variations Summary */}
+                                                            <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-2">
+                                                                {Array.from(new Set((item.variaciones || []).map(v => v.color.nombre))).map(colorName => {
+                                                                    const vars = (item.variaciones || []).filter(v => v.color.nombre === colorName);
+                                                                    return (
+                                                                        <div key={colorName} className="flex flex-wrap gap-2 items-center">
+                                                                            <span className="font-bold text-gray-700 min-w-[60px]">{colorName}:</span>
+                                                                            {vars.map((v, idx) => (
+                                                                                <span key={idx} className="bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">
+                                                                                    {v.talle} <span className="text-blue-600 font-bold">x{v.cantidad}</span>
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </li>
                                                     ))}

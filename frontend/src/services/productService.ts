@@ -248,6 +248,20 @@ export const categoryService = {
         return data as Categoria[];
     },
 
+    async getCategoryById(id: string) {
+        const { data, error } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            console.error('Error fetching category:', error);
+            return null;
+        }
+        return data as Categoria;
+    },
+
     async createCategory(category: Omit<Categoria, 'id'>) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuario no autenticado para crear categoría");

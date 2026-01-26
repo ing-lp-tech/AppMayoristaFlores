@@ -55,7 +55,7 @@ CREATE TABLE public.rollos_tela (
   metros_disponibles DECIMAL(8,2) NOT NULL,
   metros_reservados DECIMAL(8,2) DEFAULT 0,
   costo_por_metro DECIMAL(8,2) NOT NULL,
-  proveedor_id UUID REFERENCES public.proveedores(id),
+  proveedor_id UUID REFERENCES public.proveedores(id) ON DELETE SET NULL,
   ubicacion VARCHAR(100),
   estado VARCHAR(20) DEFAULT 'disponible',
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -71,7 +71,7 @@ CREATE TABLE public.insumos (
   stock_actual DECIMAL(10,2) NOT NULL DEFAULT 0,
   stock_minimo DECIMAL(10,2) NOT NULL DEFAULT 0,
   costo_unitario DECIMAL(8,2) NOT NULL,
-  proveedor_id UUID REFERENCES public.proveedores(id),
+  proveedor_id UUID REFERENCES public.proveedores(id) ON DELETE SET NULL,
   ubicacion VARCHAR(100),
   estado VARCHAR(10) DEFAULT 'activo',
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW()
