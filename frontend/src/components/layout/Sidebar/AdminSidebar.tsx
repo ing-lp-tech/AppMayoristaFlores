@@ -3,7 +3,6 @@ import {
     LayoutDashboard,
     Box,
     Package,
-    Scissors,
     ShoppingCart,
     Users,
     LogOut,
