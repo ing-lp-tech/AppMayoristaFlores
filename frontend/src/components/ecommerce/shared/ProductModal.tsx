@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { X, ShoppingCart, Check, Package, Info, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { X, ShoppingCart, Check, Package, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCartDualStore } from '../../../store/cartDualStore';
-import { categoryService } from '../../../services/productService';
+
 import type { Producto, ProductoTalla } from '../../../types';
 
 interface ProductModalProps {
@@ -14,7 +14,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
     const { mode, addMinoristaItem, addMayoristaItem } = useCartDualStore();
     const [selectedSizeId, setSelectedSizeId] = useState<string>('');
     const [selectedColor, setSelectedColor] = useState<{ nombre: string; hex: string } | undefined>(undefined);
-    const [categoryName, setCategoryName] = useState('');
+    const [categoryName] = useState('');
     const [added, setAdded] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
