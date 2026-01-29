@@ -121,6 +121,16 @@ export const AdminProducts = () => {
         }
     };
 
+    // Generate random 5-char alphanumeric SKU (Uppercase)
+    const generateSKU = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < 5; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -130,8 +140,28 @@ export const AdminProducts = () => {
         }
 
         try {
+            let finalSku = formData.codigo;
+
+            // Auto-generate SKU if empty
+            if (!finalSku) {
+                let unique = false;
+                let attempts = 0;
+                while (!unique && attempts < 10) {
+                    finalSku = generateSKU();
+                    // Check against loaded products
+                    const exists = products.some(p => p.codigo === finalSku);
+                    if (!exists) unique = true;
+                    attempts++;
+                }
+
+                if (!unique) {
+                    throw new Error('No se pudo generar un SKU único automáticamente. Intente nuevamente.');
+                }
+            }
+
             const productData = {
                 ...formData,
+                codigo: finalSku, // Use generated or existing SKU
                 proceso_produccion_id: formData.proceso_produccion_id || null, // Convert empty string to null for UUID
                 stock_total: tallesForm.reduce((sum, t) => sum + t.stock, 0),
                 slug: formData.nombre?.toLowerCase().replace(/ /g, '-')
@@ -154,7 +184,7 @@ export const AdminProducts = () => {
                 alert('Producto y stock actualizados con éxito');
             } else {
                 await productService.createProduct(productData, tallesForm);
-                alert('Producto creado con éxito');
+                alert(`Producto creado con éxito. SKU Generado: ${finalSku}`);
             }
 
             setIsModalOpen(false);
@@ -521,10 +551,9 @@ export const AdminProducts = () => {
                                             <div>
                                                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Código SKU interno</label>
                                                 <input
-                                                    required
                                                     type="text"
                                                     className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-mono font-bold"
-                                                    placeholder="MOD-001"
+                                                    placeholder="Dejar vacío para autogenerar"
                                                     value={formData.codigo}
                                                     onChange={e => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
                                                 />

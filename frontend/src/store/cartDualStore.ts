@@ -103,9 +103,8 @@ export const useCartDualStore = create<CartDualState>()(
                 const existing = items.find(i => i.id === itemId);
 
                 // Calculate base unit price (Derived from Curve Price if needed, or maintain curve logic)
-                const talles = producto.producto_talles ?? [];
-                const tallesCurvaCount = talles.filter(t => t.incluido_curva).length || 1;
-                const unitPrice = producto.precio_mayorista_curva / tallesCurvaCount;
+                // Calculate base unit price (Now using the curve price as unit price directly per user request)
+                const unitPrice = producto.precio_mayorista_curva;
 
                 // Consolidate Variations
                 const consolidate = (vars: typeof variaciones) => {

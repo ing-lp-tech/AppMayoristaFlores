@@ -17,8 +17,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     const isWholesale = mode === 'mayorista';
 
     // In wholesale mode, we show the unit price equivalent inside the curve for comparison
-    const tallesCurvaCount = product.producto_talles.filter(t => t.incluido_curva).length;
-    const unitPriceInCurve = tallesCurvaCount > 0 ? product.precio_mayorista_curva / tallesCurvaCount : 0;
+
 
     return (
         <>
@@ -76,12 +75,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                         <div>
                             {isWholesale ? (
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">Precio por Curva</span>
+                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">Precio Mayorista (C/U)</span>
                                     <span className="text-2xl font-black text-blue-900 animate-in fade-in zoom-in duration-300">
                                         ${product.precio_mayorista_curva.toLocaleString()}
-                                    </span>
-                                    <span className="text-[10px] text-gray-400">
-                                        Equiv. unit: ${unitPriceInCurve.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </span>
                                 </div>
                             ) : (

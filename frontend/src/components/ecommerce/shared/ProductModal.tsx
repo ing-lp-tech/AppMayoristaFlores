@@ -59,8 +59,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
     // Wholesale Totals
     const totalMatrixUnits = Object.values(matrixQuantities).reduce((a, b) => a + b, 0);
     // Unit price derivation
-    const curveSize = tallesDisponibles.filter(t => t.incluido_curva).length || 1;
-    const unitPriceMayorista = product.precio_mayorista_curva / curveSize;
+    const unitPriceMayorista = product.precio_mayorista_curva;
 
     if (!isOpen) return null;
 
@@ -219,7 +218,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                         <span className="text-2xl font-black text-gray-900">${product.precio_minorista.toLocaleString()}</span>
                                     </div>
                                     <div className={`p-4 rounded-2xl border-2 transition-all ${isWholesale ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 bg-gray-50 opacity-40'}`}>
-                                        <span className="block text-[10px] font-black text-blue-400 uppercase mb-1">Mayorista (Unitario)</span>
+                                        <span className="block text-[10px] font-black text-blue-400 uppercase mb-1">Mayorista (Cada Prenda)</span>
                                         <span className="text-2xl font-black text-blue-900">${unitPriceMayorista.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                     </div>
                                 </div>

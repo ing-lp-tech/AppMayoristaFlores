@@ -750,7 +750,7 @@ export const Produccion = () => {
                                                             <option value="">-- Seleccionar Rollo --</option>
                                                             {rowOptions.map((ar: any) => (
                                                                 <option key={ar.id} value={ar.id}>
-                                                                    {`[${ar.codigo}] ${ar.tipo_tela} - ${ar.color || 'S/C'} (${ar.metros_restantes}m)`}
+                                                                    {`${ar.color || 'S/C'} (${ar.peso_restante || 0} kg) - [${ar.codigo}] ${ar.tipo_tela}`}
                                                                 </option>
                                                             ))}
                                                         </select>

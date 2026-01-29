@@ -318,6 +318,7 @@ export const Inventario = () => {
                     {filteredTypes.map(type => {
                         const rolls = groupedTelas[type];
                         const totalMeters = rolls.reduce((sum, r) => sum + Number(r.metros_restantes || 0), 0);
+                        const totalKg = rolls.reduce((sum, r) => sum + Number(r.peso_restante || 0), 0);
                         const totalRolls = rolls.length;
                         const uniqueColors = [...new Set(rolls.map(r => r.color))].length;
                         const isExpanded = expandedType === type || searchTerm.length > 0;
@@ -344,8 +345,11 @@ export const Inventario = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="block text-xl font-bold text-blue-600">{totalMeters} m</span>
-                                        <span className="text-xs text-gray-400 uppercase font-medium">Total Disponibles</span>
+                                        <span className="block text-xl font-bold text-blue-600">{totalKg.toFixed(1)} kg</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[10px] text-gray-500 font-bold">{totalMeters} m</span>
+                                            <span className="text-xs text-gray-400 uppercase font-medium">Total Disp.</span>
+                                        </div>
                                     </div>
                                 </button>
 
@@ -378,17 +382,17 @@ export const Inventario = () => {
                                                             <div className="space-y-2 mt-3">
                                                                 <div className="flex justify-between items-center text-sm">
                                                                     <div className="flex items-center gap-1.5 text-gray-600">
-                                                                        <Ruler className="h-3.5 w-3.5" />
-                                                                        <span>Metros</span>
-                                                                    </div>
-                                                                    <span className="font-bold">{t.metros_restantes}m</span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center text-sm">
-                                                                    <div className="flex items-center gap-1.5 text-gray-600">
                                                                         <Scale className="h-3.5 w-3.5" />
                                                                         <span>Peso</span>
                                                                     </div>
                                                                     <span className="font-medium">{t.peso_restante || '-'} kg</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center text-sm">
+                                                                    <div className="flex items-center gap-1.5 text-gray-600">
+                                                                        <Ruler className="h-3.5 w-3.5" />
+                                                                        <span>Metros</span>
+                                                                    </div>
+                                                                    <span className="font-bold">{t.metros_restantes}m</span>
                                                                 </div>
                                                                 <div className="flex justify-between items-center text-sm">
                                                                     <div className="flex items-center gap-1.5 text-gray-600">
