@@ -91,29 +91,49 @@ export const Costos = () => {
 
     const fetchData = async () => {
         const [lotesRes, insumosRes] = await Promise.all([
-            supabase.from('lotes_produccion').select('*, producto:productos(nombre, codigo)').order('creado_en', { ascending: false }),
+            supabase.from('lotes_produccion')
+                .select(`
+                    *,
+                    producto:productos(id, nombre, codigo),
+                    lote_productos(
+                        cantidad_producto,
+                        producto:productos(id, nombre, codigo)
+                    )
+                `)
+                .order('creado_en', { ascending: false }),
             supabase.from('insumos').select('*')
         ]);
 
-        if (lotesRes.data) setLotes(lotesRes.data);
+        if (lotesRes.error) {
+            console.error("Error fetching lotes:", lotesRes.error);
+        }
+
+        if (lotesRes.data) {
+            setLotes(lotesRes.data);
+            console.log("Lotes fetched:", lotesRes.data);
+        }
+
         if (insumosRes.data) setDbInsumos(insumosRes.data);
     };
 
     const fetchHistorial = async () => {
-        // Fetch history with related lote and product info
         let query = supabase
             .from('calculos_costos')
             .select('*, lote:lotes_produccion(codigo, producto:productos(nombre))')
             .order('fecha', { ascending: false });
 
-        const { data } = await query;
+        const { data, error } = await query;
+        if (error) console.error("Error fetching history:", error);
         if (data) setHistorial(data);
     };
 
-    // --- REFACTOR: Handle Lote Selection manually to populate defaults ---
+    // State for selected specific product within a bucket
+    const [selectedProductId, setSelectedProductId] = useState<string>("");
+
     const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const loteId = e.target.value;
         setSelectedLoteId(loteId);
+        setSelectedProductId(""); // Reset product selection
 
         if (!loteId) {
             setProductName("");
@@ -125,8 +145,21 @@ export const Costos = () => {
 
         const lote = lotes.find(l => l.id === loteId);
         if (lote) {
-            setProductName(lote.producto?.nombre || "Producto Desconocido");
-            setPrendasTotales(lote.cantidad_real || lote.cantidad_total || 0);
+            // Check if multiple products exist
+            const hasMultipleProducts = lote.lote_productos && lote.lote_productos.length > 0;
+
+            if (hasMultipleProducts) {
+                // Determine which product to select default (first one)
+                // or just wait for user. Let's select first one to be helpful.
+                const firstProd = lote.lote_productos[0];
+                setSelectedProductId(firstProd.producto.id);
+                setProductName(firstProd.producto.nombre);
+                setPrendasTotales(firstProd.cantidad_producto || 0);
+            } else {
+                // Fallback to main product
+                setProductName(lote.producto?.nombre || "Producto Desconocido");
+                setPrendasTotales(lote.cantidad_real || lote.cantidad_total || 0);
+            }
 
             // Calculate Total Consumption from Rolls (Default behavior)
             if (lote.detalle_rollos && Array.isArray(lote.detalle_rollos)) {
@@ -135,6 +168,20 @@ export const Costos = () => {
                 setFabricQty(totalMeters);
                 setFabricUnit("metros");
                 setFabricPrice(0);
+            }
+        }
+    };
+
+    const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const prodId = e.target.value;
+        setSelectedProductId(prodId);
+
+        const lote = lotes.find(l => l.id === selectedLoteId);
+        if (lote && lote.lote_productos) {
+            const prodDetail = lote.lote_productos.find((lp: any) => lp.producto.id === prodId);
+            if (prodDetail) {
+                setProductName(prodDetail.producto.nombre);
+                setPrendasTotales(prodDetail.cantidad_producto || 0);
             }
         }
     };
@@ -257,15 +304,9 @@ export const Costos = () => {
         if (!resultados || !selectedLoteId) return;
         setGuardando(true);
         try {
-            // Check if exists for this Lote
-            const { data: existing } = await supabase
-                .from('calculos_costos')
-                .select('id')
-                .eq('lote_id', selectedLoteId)
-                .single();
-
             const payload = {
                 lote_id: selectedLoteId,
+                producto_id: selectedProductId || null, // Guardar el producto específico
                 fecha: fechaCalculo,
                 fabric_unit: fabricUnit,
                 fabric_qty: fabricQty,
@@ -280,16 +321,8 @@ export const Costos = () => {
                 detalle_insumos: insumosList
             };
 
-            let error;
-            if (existing) {
-                // Update
-                const res = await supabase.from('calculos_costos').update(payload).eq('id', existing.id);
-                error = res.error;
-            } else {
-                // Insert
-                const res = await supabase.from('calculos_costos').insert(payload);
-                error = res.error;
-            }
+            // Always Insert new history record
+            const { error } = await supabase.from('calculos_costos').insert(payload);
 
             if (error) throw error;
 
@@ -367,6 +400,33 @@ export const Costos = () => {
                                         </option>
                                     ))}
                                 </select>
+
+                                {/* Multiple Product Selector */}
+                                {(() => {
+                                    const selectedLote = lotes.find(l => l.id === selectedLoteId);
+                                    if (selectedLote && selectedLote.lote_productos && selectedLote.lote_productos.length > 0) {
+                                        return (
+                                            <div className="mt-3 animate-in fade-in slide-in-from-top-2">
+                                                <label className="block text-xs font-bold text-blue-700 mb-1 ml-1 flex items-center gap-1">
+                                                    <Box className="w-3 h-3" />
+                                                    Seleccionar Producto del Lote
+                                                </label>
+                                                <select
+                                                    className="w-full border-blue-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 bg-blue-50/50 border text-sm text-blue-900 font-medium"
+                                                    value={selectedProductId}
+                                                    onChange={handleProductChange}
+                                                >
+                                                    {selectedLote.lote_productos.map((lp: any) => (
+                                                        <option key={lp.producto.id} value={lp.producto.id}>
+                                                            {lp.producto.nombre} - Cant: {lp.cantidad_producto} un.
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
 
                             <div>
@@ -390,8 +450,14 @@ export const Costos = () => {
                                     <div className="text-lg font-bold text-blue-900 truncate">{productName || "-"}</div>
                                 </div>
                                 <div>
-                                    <div className="text-sm text-gray-500">Cantidad de Prendas (Lote)</div>
-                                    <div className="text-2xl font-bold text-blue-700">{prendasTotales} un.</div>
+                                    <div className="text-sm text-gray-500 mb-1">Cantidad de Prendas (Lote)</div>
+                                    <FormattedNumberInput
+                                        value={prendasTotales}
+                                        onChange={setPrendasTotales}
+                                        className="w-full border-blue-200 border-2 p-2 rounded-lg text-xl font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center bg-white"
+                                        placeholder="0"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Editable para calcular costos con menos cantidad</p>
                                 </div>
                             </div>
                         )}

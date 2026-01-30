@@ -209,11 +209,29 @@ export interface Insumo {
     creado_en: string;
 }
 
+export interface LoteProducto {
+    id: string;
+    lote_id: string;
+    producto_id: string;
+    orden: number;
+    tallas_distribucion?: Record<string, Record<string, number>>; // Color -> Talle ID -> Quantity
+    cantidad_producto?: number; // Total quantity for this specific product
+    creado_en: string;
+    // Joined fields
+    producto?: {
+        id: string;
+        nombre: string;
+        codigo: string;
+        producto_talles?: ProductoTalla[];
+    };
+}
+
 export interface LoteProduccion {
     id: string;
     codigo: string;
-    producto_id: string;
-    detalle_rollos?: { rollo_id?: string; color: string; metros: number }[];
+    producto_id: string; // Mantener para compatibilidad (producto principal)
+    productos?: LoteProducto[]; // NUEVO: Array de productos del lote
+    detalle_rollos?: { rollo_id?: string; color: string; kg_consumido?: number; metros?: number }[];
     tallas_distribucion?: Record<string, Record<string, number>>;
     modelo_corte?: string;
     cantidad_total: number;
@@ -230,6 +248,7 @@ export interface LoteProduccion {
     producto?: {
         nombre: string;
         codigo: string;
+        producto_talles?: ProductoTalla[];
     };
 }
 

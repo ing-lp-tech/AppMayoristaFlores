@@ -145,14 +145,21 @@ export const productService = {
     async addStockFromBatch(productId: string, distribution: Record<string, Record<string, number>>) {
         if (!distribution || Object.keys(distribution).length === 0) return;
 
+        console.log('📦 addStockFromBatch called for product:', productId);
+        console.log('📊 Distribution received:', JSON.stringify(distribution, null, 2));
+
         // 1. Calculate totals per Talle ID
         const totalsPerTalle: Record<string, number> = {};
 
-        Object.values(distribution).forEach(colorDist => {
+        Object.entries(distribution).forEach(([color, colorDist]) => {
+            console.log(`  🎨 Processing color: ${color}`);
             Object.entries(colorDist).forEach(([talleId, qty]) => {
+                console.log(`    📏 Talle ${talleId}: +${qty} units`);
                 totalsPerTalle[talleId] = (totalsPerTalle[talleId] || 0) + qty;
             });
         });
+
+        console.log('✅ Totals per Talle calculated:', totalsPerTalle);
 
         // 2. Fetch current talles to get current stock
         const { data: currentTalles, error: fetchError } = await supabase
@@ -163,17 +170,23 @@ export const productService = {
         if (fetchError) throw fetchError;
         if (!currentTalles) return;
 
+        console.log('📋 Current talles before update:', currentTalles.map(t => ({ id: t.id, talla_codigo: t.talla_codigo, stock: t.stock })));
+
         // 3. Prepare updates
         const updates = currentTalles.map(t => {
             const addedQty = totalsPerTalle[t.id] || 0;
             if (addedQty > 0) {
+                const newStock = (t.stock || 0) + addedQty;
+                console.log(`  🔄 Updating talle ${t.talla_codigo}: ${t.stock || 0} + ${addedQty} = ${newStock}`);
                 return {
                     ...t,
-                    stock: (t.stock || 0) + addedQty
+                    stock: newStock
                 };
             }
             return null;
         }).filter(Boolean);
+
+        console.log('💾 Updates to apply:', updates.length);
 
         // 4. Update Talles
         if (updates.length > 0) {
@@ -183,6 +196,8 @@ export const productService = {
 
             await this.syncProductTotalStock(productId);
         }
+
+        console.log('✅ Stock update completed for product:', productId);
     },
 
     async syncProductTotalStock(productId: string) {
