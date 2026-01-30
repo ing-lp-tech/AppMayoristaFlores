@@ -375,13 +375,11 @@ export const Inventario = () => {
                         // Calculate Active vs Inactive first to use for totals
                         // Now prioritized by KG as requested: If it has weight (> 0.01), it is ACTIVE, even if meters are 0.
                         const activeRolls = rolls.filter(r => Number(r.metros_restantes) > 0.5 || Number(r.peso_restante) > 0.01);
-                        const inactiveRolls = rolls.filter(r => Number(r.metros_restantes) <= 0.5 && Number(r.peso_restante) <= 0.01);
 
                         const totalMeters = activeRolls.reduce((sum, r) => sum + Number(r.metros_restantes || 0), 0);
                         const totalKg = activeRolls.reduce((sum, r) => sum + Number(r.peso_restante || 0), 0);
 
                         const totalRolls = rolls.length;
-                        const availableRollsCount = activeRolls.length;
                         const uniqueColors = [...new Set(rolls.map(r => r.color))].length;
                         const isExpanded = expandedType === type || searchTerm.length > 0;
 
