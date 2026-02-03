@@ -19,6 +19,8 @@ export const Produccion = () => {
 
     // Nuevo estado para el "Stepper"
     const [selectedBatch, setSelectedBatch] = useState<LoteProduccion | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null); // Track ID for editing
     const [procesos, setProcesos] = useState<any[]>([]); // Store processes with steps
 
     // New Batch State
@@ -169,17 +171,90 @@ export const Produccion = () => {
         setNewBatch({ ...newBatch, detalle_rollos: list });
     };
 
-    const handleCreateBatch = async (e: React.FormEvent) => {
+    const handleEditBatch = (batch: LoteProduccion) => {
+        setIsEditing(true);
+        setEditingId(batch.id);
+        // Prepare products IDs
+        let pIds = [''];
+        if (batch.productos && batch.productos.length > 0) {
+            pIds = batch.productos.map((p: any) => p.producto?.id || p.producto_id).filter(Boolean);
+        } else if (batch.producto_id) {
+            pIds = [batch.producto_id];
+        }
+
+        setNewBatch({
+            codigo: batch.codigo,
+            producto_id: batch.producto_id,
+            productos_ids: pIds,
+            modelo_corte: batch.modelo_corte,
+            detalle_rollos: batch.detalle_rollos || [],
+            estado: batch.estado,
+            fecha_inicio: batch.fecha_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
+            propietario: batch.propietario,
+            selectedProcessId: ''
+        });
+
+        setSelectedBatch(null);
+        setIsModalOpen(true);
+    };
+
+    const handleSaveBatch = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Validar que hay al menos 1 producto seleccionado
             const productosValidos = (newBatch.productos_ids || []).filter(id => id !== '');
             if (productosValidos.length === 0) {
                 alert('Debes seleccionar al menos un producto');
                 return;
             }
 
-            // 1. Prepare Batch Data with Snapshot
+            // UPDATE EXISTING BATCH
+            if (isEditing && editingId) {
+                // 0. Fetch existing product data to PRESERVE distributions/counts
+                const { data: existingLp } = await supabase
+                    .from('lote_productos')
+                    .select('*')
+                    .eq('lote_id', editingId);
+
+                const { error: updateError } = await supabase.from('lotes_produccion').update({
+                    codigo: newBatch.codigo,
+                    modelo_corte: newBatch.modelo_corte,
+                    propietario: newBatch.propietario,
+                    detalle_rollos: newBatch.detalle_rollos,
+                    fecha_inicio: newBatch.fecha_inicio,
+                    producto_id: productosValidos[0] // Main product update
+                }).eq('id', editingId);
+
+                if (updateError) throw updateError;
+
+                // Update Products Relations: Delete all and Re-insert
+                await supabase.from('lote_productos').delete().eq('lote_id', editingId);
+
+                const loteProductos = productosValidos.map((prodId, index) => {
+                    // Try to find if this product was already in the batch to keep its data
+                    const existing = existingLp?.find((lp: any) => lp.producto_id === prodId);
+                    return {
+                        lote_id: editingId,
+                        producto_id: prodId,
+                        orden: index + 1,
+                        // Preserve data if exists, otherwise 0/null
+                        cantidad_producto: existing ? existing.cantidad_producto : 0,
+                        tallas_distribucion: existing ? existing.tallas_distribucion : null
+                    };
+                });
+
+                const { error: lpError } = await supabase.from('lote_productos').insert(loteProductos);
+                if (lpError) throw lpError;
+
+                alert('Lote actualizado correctamente.');
+                setIsEditing(false);
+                setEditingId(null);
+                setIsModalOpen(false);
+                setNewBatch({ ...newBatch, codigo: '', modelo_corte: '', productos_ids: [''] }); // Clear mostly
+                fetchData();
+                return;
+            }
+
+            // CREATE NEW BATCH
             let snapshot = null;
             let firstState = 'planificado';
 
@@ -187,7 +262,6 @@ export const Produccion = () => {
             const selectedProd = productos.find(p => p.id === productosValidos[0]);
 
             if (selectedProd?.proceso_produccion_id) {
-                // Fetch the dynamic process steps
                 const { data: steps } = await supabase
                     .from('pasos_proceso')
                     .select('*')
@@ -200,7 +274,6 @@ export const Produccion = () => {
                 }
             }
 
-            // If no custom process, use default snapshot for consistency
             if (!snapshot) {
                 snapshot = {
                     pasos: [
@@ -212,10 +285,10 @@ export const Produccion = () => {
                 };
             }
 
-            // 2. Create Batch (mantener producto_id con el primero por compatibilidad)
+            // Create Batch
             const { data: batchData, error: batchError } = await supabase.from('lotes_produccion').insert([{
                 codigo: newBatch.codigo,
-                producto_id: productosValidos[0], // Primer producto
+                producto_id: productosValidos[0],
                 modelo_corte: newBatch.modelo_corte,
                 detalle_rollos: newBatch.detalle_rollos,
                 propietario: newBatch.propietario,
@@ -228,7 +301,7 @@ export const Produccion = () => {
 
             if (batchError) throw batchError;
 
-            // 3. Insertar relaciones de productos en lote_productos
+            // Insert relations
             const loteProductos = productosValidos.map((prodId, index) => ({
                 lote_id: batchData.id,
                 producto_id: prodId,
@@ -244,7 +317,7 @@ export const Produccion = () => {
                 throw loteProductosError;
             }
 
-            // 4. CONSUME FABRIC ROLLS IMMEDIATELY (so they show as 'usado/agotado' in inventory)
+            // Consume rolls (only on create)
             const rollsToConsume = newBatch.detalle_rollos
                 ?.filter((r: any) => r.rollo_id && r.kg_consumido > 0)
                 .map((r: any) => ({
@@ -253,18 +326,11 @@ export const Produccion = () => {
                 }));
 
             if (rollsToConsume && rollsToConsume.length > 0) {
-                console.log('🧵 Consumiendo rollos al crear lote:', rollsToConsume);
                 const { error: rpcError } = await supabase.rpc('consume_rolls_for_batch', {
                     p_batch_id: batchData.id,
                     p_rolls: rollsToConsume
                 });
-
-                if (rpcError) {
-                    console.error('❌ Error consumiendo rollos:', rpcError);
-                    alert(`Lote creado, pero hubo un error al descontar la tela.\n\nDetalle: ${rpcError.message}`);
-                } else {
-                    console.log('✅ Rollos consumidos exitosamente al crear el lote');
-                }
+                if (rpcError) console.error('Error consuming rolls:', rpcError);
             }
 
             fetchData();
@@ -280,6 +346,7 @@ export const Produccion = () => {
                 propietario: '',
                 selectedProcessId: ''
             });
+
         } catch (error: any) {
             alert('Error: ' + error.message);
         }
@@ -656,9 +723,17 @@ export const Produccion = () => {
                                 <h2 className="text-2xl font-black text-gray-900">Control de Etapas</h2>
                                 <p className="text-sm text-gray-500 font-bold">{selectedBatch.producto?.nombre} - <span className="text-indigo-600">{selectedBatch.codigo}</span></p>
                             </div>
-                            <button onClick={() => setSelectedBatch(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
-                                <X className="h-6 w-6" /> {/* Make sure X is imported if not already */}
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleEditBatch(selectedBatch)}
+                                    className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors"
+                                >
+                                    Editar Datos
+                                </button>
+                                <button onClick={() => setSelectedBatch(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
+                                    <X className="h-6 w-6" />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-10 overflow-y-auto">
@@ -989,11 +1064,11 @@ export const Produccion = () => {
                 <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
                         <div className="p-8 border-b border-gray-100 flex-shrink-0">
-                            <h2 className="text-2xl font-black text-gray-900">Iniciar Lote</h2>
-                            <p className="text-sm text-gray-500 mt-1">Gestión de múltiples productos por lote</p>
+                            <h2 className="text-2xl font-black text-gray-900">{isEditing ? 'Editar Lote' : 'Iniciar Lote'}</h2>
+                            <p className="text-sm text-gray-500 mt-1">{isEditing ? 'Modificar datos del lote existente' : 'Gestión de múltiples productos por lote'}</p>
                         </div>
 
-                        <form onSubmit={handleCreateBatch} className="p-8 overflow-y-auto max-h-[calc(90vh-200px)] space-y-5">
+                        <form onSubmit={handleSaveBatch} className="p-8 overflow-y-auto max-h-[calc(90vh-200px)] space-y-5">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Código Lote</label>
@@ -1254,8 +1329,10 @@ export const Produccion = () => {
 
 
                             <div className="flex justify-end gap-3 mt-8">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
-                                <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 active:scale-95 transition-all">Crear Lote</button>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setIsEditing(false); setEditingId(null); }} className="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
+                                <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 active:scale-95 transition-all">
+                                    {isEditing ? 'Guardar Cambios' : 'Crear Lote'}
+                                </button>
                             </div>
                         </form>
                     </div>
