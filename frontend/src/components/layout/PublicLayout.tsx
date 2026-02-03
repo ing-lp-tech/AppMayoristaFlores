@@ -67,7 +67,7 @@ export const PublicLayout = () => {
             {/* Footer */}
             <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
                 <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center md:text-left">
                         <div>
                             <h3 className="text-sm font-bold text-gray-900 tracking-wider uppercase">Textil Pymes</h3>
                             <p className="mt-4 text-base text-gray-500">
@@ -87,6 +87,58 @@ export const PublicLayout = () => {
                                 ventas@textilpymes.com<br />
                                 WhatsApp: +54 9 11 1234 5678
                             </p>
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 tracking-wider uppercase">Síguenos</h3>
+                            <p className="mt-4 text-base text-gray-500 mb-4">
+                                ¡Únete a nuestra comunidad para novedades exclusivas!
+                            </p>
+                            <div className="flex justify-center md:justify-start space-x-4">
+                                {/* TikTok */}
+                                <a href="https://www.tiktok.com/@scargo.jeans" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                    <span className="sr-only">TikTok</span>
+                                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 1 0-1 13.6 6.84 6.84 0 0 0 6.82-6.85V7.97a9.68 9.68 0 0 0 3.41 1.73V6.69z" />
+                                    </svg>
+                                </a>
+                                {/* Instagram */}
+                                <a href="https://www.instagram.com/scargojeans.ok/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#E1306C] transition-colors">
+                                    <span className="sr-only">Instagram</span>
+                                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                                        <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.8c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.8c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772 4.902 4.902 0 011.772-1.153c.636-.247 1.363-.416 2.427-.465C9.673 2.013 10.03 2 12.488 2h-1.74zm-2.546 1.916c-2.366.012-2.673.048-3.32.302-.564.221-.965.518-1.288.841-.323.323-.62.724-.84 1.288-.255.647-.291.954-.303 3.32-.012 2.366-.012 3.654 0 6.02.012 2.366.048 2.673.303 3.32.22.564.517.965.84 1.288.324.323.725.62 1.288.84.647.255.954.291 3.32.303 2.366.012 3.654.012 6.02 0 2.366-.012 2.673-.048 3.32-.303.564-.221.965-.518 1.288-.841.323-.323.62-.724.84-1.288.254-.647.29-1.084.302-3.45.012-2.366.012-3.654 0-6.02-.012-2.366-.048-2.673-.302-3.32-.221-.564-.518-.965-.841-1.288-.323-.323-.724-.62-1.288-.84-.647-.255-.954-.291-3.32-.303-2.366-.012-4.52-.012-6.887 0zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.916a3.219 3.219 0 100 6.438 3.219 3.219 0 000-6.438zM16.965 5.5a1.16 1.16 0 110 2.32 1.16 1.16 0 010-2.32z" clipRule="evenodd" />
+                                    </svg>
+                                </a>
+                                {/* Facebook */}
+                                <a href="https://www.facebook.com/p/Scargo-Jeans-100063442737076/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#1877F2] transition-colors">
+                                    <span className="sr-only">Facebook</span>
+                                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                                        <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Copyright & Designer - Distinct Section */}
+                    <div className="mt-12 pt-8 border-t border-gray-200">
+                        <div className="flex flex-col md:flex-row justify-center items-center gap-8">
+                            <p className="text-sm text-gray-400">
+                                &copy; 2026 Todos los derechos reservados.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-gray-500 font-medium">Diseñado por Ing. Luis Patty Mamani</span>
+                                <a
+                                    href="https://www.tiktok.com/@ingeniero_emprendedor"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-gray-400 hover:text-black transition-colors p-1 hover:bg-gray-100 rounded-full"
+                                    aria-label="TikTok del Desarrollador"
+                                >
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 1 0-1 13.6 6.84 6.84 0 0 0 6.82-6.85V7.97a9.68 9.68 0 0 0 3.41 1.73V6.69z" />
+                                    </svg>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

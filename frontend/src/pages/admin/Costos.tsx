@@ -84,6 +84,9 @@ export const Costos = () => {
     const [filterFechaFin] = useState("");
     const [filterBusqueda, setFilterBusqueda] = useState("");
 
+    // Editing State
+    const [editingId, setEditingId] = useState<string | null>(null);
+
     useEffect(() => {
         fetchData();
         fetchHistorial();
@@ -119,7 +122,7 @@ export const Costos = () => {
     const fetchHistorial = async () => {
         let query = supabase
             .from('calculos_costos')
-            .select('*, lote:lotes_produccion(codigo, producto:productos(nombre))')
+            .select('*, producto:productos(id, nombre), lote:lotes_produccion(codigo, producto:productos(nombre))')
             .order('fecha', { ascending: false });
 
         const { data, error } = await query;
@@ -140,6 +143,7 @@ export const Costos = () => {
             setPrendasTotales(0);
             setFabricQty(0);
             setFabricPrice(0);
+            setEditingId(null); // Reset editing on manual change
             return;
         }
 
@@ -189,14 +193,27 @@ export const Costos = () => {
     // --- Load Calculation from History ---
     const cargarCalculo = (item: any) => {
         // 1. Set general info
+        setEditingId(item.id);
         setSelectedLoteId(item.lote_id);
         setFechaCalculo(item.fecha);
 
         // Find lote info to set derived display strings (like Product Name)
         const lote = lotes.find(l => l.id === item.lote_id);
         if (lote) {
-            setProductName(lote.producto?.nombre || "Calculado desde Historial");
-            setPrendasTotales(lote.cantidad_real || lote.cantidad_total || 0);
+            // Prioritize specific product if saved, else lote main product
+            if (item.producto) {
+                setProductName(item.producto.nombre);
+                setSelectedProductId(item.producto.id);
+
+                // Set specific product quantity
+                const prodDetail = lote.lote_productos?.find((lp: any) => lp.producto.id === item.producto.id);
+                setPrendasTotales(prodDetail?.cantidad_producto || lote.cantidad_real || lote.cantidad_total || 0);
+
+            } else {
+                setProductName(lote.producto?.nombre || "Calculado desde Historial");
+                setSelectedProductId("");
+                setPrendasTotales(lote.cantidad_real || lote.cantidad_total || 0);
+            }
         }
 
         // 2. Set Fabric Params
@@ -206,9 +223,14 @@ export const Costos = () => {
 
         // 3. Set Sewing Cost (Unitary)
         // We stored 'costo_costura_total'. We need unitary.
-        const prendas = lote?.cantidad_real || lote?.cantidad_total || 1;
-        if (prendas > 0 && item.costo_costura_total) {
-            setCostoCostura(item.costo_costura_total / prendas);
+        let cantidadParaCostos = lote?.cantidad_real || lote?.cantidad_total || 1;
+        if (lote && item.producto) {
+            const prodDetail = lote.lote_productos?.find((lp: any) => lp.producto.id === item.producto.id);
+            cantidadParaCostos = prodDetail?.cantidad_producto || cantidadParaCostos;
+        }
+
+        if (cantidadParaCostos > 0 && item.costo_costura_total) {
+            setCostoCostura(item.costo_costura_total / cantidadParaCostos);
         } else {
             setCostoCostura(0);
         }
@@ -321,12 +343,29 @@ export const Costos = () => {
                 detalle_insumos: insumosList
             };
 
-            // Always Insert new history record
-            const { error } = await supabase.from('calculos_costos').insert(payload);
+            let error;
+
+            if (editingId) {
+                // Update existing record
+                const { error: updateError } = await supabase
+                    .from('calculos_costos')
+                    .update(payload)
+                    .eq('id', editingId);
+                error = updateError;
+            } else {
+                // Insert new record
+                const { error: insertError } = await supabase
+                    .from('calculos_costos')
+                    .insert(payload);
+                error = insertError;
+            }
 
             if (error) throw error;
 
-            alert("Cálculo guardado correctamente");
+            if (error) throw error;
+
+            alert(editingId ? "Cálculo actualizado correctamente" : "Cálculo guardado correctamente");
+            setEditingId(null); // Clear editing state
             fetchHistorial();
         } catch (error) {
             console.error("Error al guardar:", error);
@@ -708,7 +747,7 @@ export const Costos = () => {
                                         <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-4 py-3">{new Date(item.fecha).toLocaleDateString()}</td>
                                             <td className="px-4 py-3 font-medium text-blue-600">{item.lote?.codigo || "-"}</td>
-                                            <td className="px-4 py-3">{item.lote?.producto?.nombre || "-"}</td>
+                                            <td className="px-4 py-3">{item.producto?.nombre || item.lote?.producto?.nombre || "-"}</td>
                                             <td className="px-4 py-3 text-right font-bold text-gray-800">${Number(item.costo_unitario).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
                                             <td className="px-4 py-3 text-right font-bold text-green-600">${Number(item.precio_venta).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
                                             <td className="px-4 py-3 text-right text-gray-600">{item.margen_ganancia}%</td>

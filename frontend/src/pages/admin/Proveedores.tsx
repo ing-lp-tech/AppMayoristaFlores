@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import type { Proveedor } from '../../types';
+import { proveedorService } from '../../services/proveedorService';
 import { Plus, Search, Edit, Trash2, Phone, Mail, Building, Percent } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -30,16 +30,11 @@ export const Proveedores = () => {
 
     const fetchProviders = async () => {
         try {
-            const { data, error } = await supabase
-                .from('proveedores')
-                .select('*')
-                .order('creado_en', { ascending: false });
-
-            if (error) throw error;
-            setProviders(data || []);
+            const data = await proveedorService.getAll();
+            setProviders(data);
         } catch (error: any) {
             console.error('Error fetching providers:', error);
-            // alert('Debug Error: ' + JSON.stringify(error)); 
+            alert('Error al cargar proveedores: ' + error.message);
         } finally {
             setLoading(false);
         }
@@ -49,23 +44,10 @@ export const Proveedores = () => {
         e.preventDefault();
         try {
             if (editingId) {
-                const { error } = await supabase
-                    .from('proveedores')
-                    .update(formData)
-                    .eq('id', editingId);
-                if (error) throw error;
+                await proveedorService.update(editingId, formData);
                 alert('Proveedor actualizado');
             } else {
-                // Auto-generate code if missing
-                const payload = { ...formData };
-                if (!payload.codigo) {
-                    payload.codigo = `PROV-${Date.now().toString().slice(-6)}`;
-                }
-
-                const { error } = await supabase
-                    .from('proveedores')
-                    .insert([payload]);
-                if (error) throw error;
+                await proveedorService.create(formData);
                 alert('Proveedor creado');
             }
 
@@ -83,16 +65,11 @@ export const Proveedores = () => {
         if (!confirm('¿Estás seguro de eliminar este proveedor?')) return;
 
         try {
-            const { error } = await supabase
-                .from('proveedores')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
+            await proveedorService.delete(id);
             fetchProviders();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting provider:', error);
-            alert('Error al eliminar');
+            alert('Error al eliminar: ' + error.message);
         }
     };
 

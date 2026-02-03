@@ -10,7 +10,9 @@ import {
     Layers,
     FileText,
     Shield,
-    ShoppingBag
+    ShoppingBag,
+    UsersRound,
+    DollarSign
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import clsx from 'clsx';
@@ -70,6 +72,18 @@ export const AdminSidebar = () => {
             allowed: ['owner', 'admin', 'inventario']
         },
         {
+            to: '/admin/duenos',
+            icon: UsersRound,
+            label: 'Dueños/Socios',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/finanzas',
+            icon: DollarSign,
+            label: 'Finanzas',
+            allowed: ['owner', 'admin']
+        },
+        {
             to: '/admin/equipo',
             icon: Shield,
             label: 'Equipo',
@@ -122,17 +136,69 @@ export const AdminSidebar = () => {
             </nav>
 
             <div className="p-4 border-t">
-                <div className="flex items-center gap-3 mb-4 px-4">
+                <div className="flex items-center gap-3 mb-3 px-4">
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
                         {user?.nombre?.[0]?.toUpperCase() || 'U'}
                     </div>
-                    <div className="text-sm">
+                    <div className="text-sm flex-1">
                         <p className="font-medium text-gray-900">{user?.nombre || 'Usuario'}</p>
-                        <p className="text-xs text-gray-500 capitalize truncate max-w-[120px]" title={user?.roles?.join(', ')}>
-                            {user?.roles?.slice(0, 2).join(', ') || 'Invitado'}
-                            {(user?.roles?.length || 0) > 2 ? '...' : ''}
-                        </p>
+                        <p className="text-xs text-gray-500">{user?.email}</p>
                     </div>
+                </div>
+
+                {/* Role Badge */}
+                <div className="mb-4 px-4">
+                    {user?.roles?.includes('admin') ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
+                            <Shield className="h-4 w-4 text-purple-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-purple-900">Super Admin</p>
+                                <p className="text-[10px] text-purple-600">Acceso total</p>
+                            </div>
+                        </div>
+                    ) : user?.roles?.includes('owner') ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                            <UsersRound className="h-4 w-4 text-blue-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-blue-900">Dueño/Socio</p>
+                                <p className="text-[10px] text-blue-600">Gestión completa</p>
+                            </div>
+                        </div>
+                    ) : user?.roles?.includes('ventas') ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                            <ShoppingCart className="h-4 w-4 text-green-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-green-900">Vendedor</p>
+                                <p className="text-[10px] text-green-600">Ventas y productos</p>
+                            </div>
+                        </div>
+                    ) : user?.roles?.includes('produccion') ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                            <Factory className="h-4 w-4 text-orange-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-orange-900">Producción</p>
+                                <p className="text-[10px] text-orange-600">Fabricación</p>
+                            </div>
+                        </div>
+                    ) : user?.roles?.includes('inventario') ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                            <Layers className="h-4 w-4 text-amber-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-amber-900">Inventario</p>
+                                <p className="text-[10px] text-amber-600">Stock y materiales</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                            <Users className="h-4 w-4 text-gray-600" />
+                            <div className="flex-1">
+                                <p className="text-xs font-semibold text-gray-900">Usuario</p>
+                                <p className="text-[10px] text-gray-600 capitalize">
+                                    {user?.roles?.join(', ') || 'Invitado'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={() => signOut()}

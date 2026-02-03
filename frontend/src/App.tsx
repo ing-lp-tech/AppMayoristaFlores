@@ -18,6 +18,8 @@ import { Ventas } from './pages/admin/Ventas';
 import { Stock } from './pages/admin/Stock';
 import { Checkout } from './pages/public/Checkout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { Duenos } from './pages/admin/Duenos';
+import { Finanzas } from './pages/admin/Finanzas';
 
 function App() {
   const { session, loading, setLoading, setSession, setUser } = useAuthStore();
@@ -107,6 +109,8 @@ function App() {
             <Route path="ventas" element={<Ventas />} />
             <Route path="proveedores" element={<Proveedores />} />
             <Route path="costos" element={<Costos />} />
+            <Route path="duenos" element={<Duenos />} />
+            <Route path="finanzas" element={<Finanzas />} />
             <Route path="equipo" element={<Equipo />} />
           </Route>
         </Route>
