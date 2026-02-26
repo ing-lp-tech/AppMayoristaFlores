@@ -536,8 +536,8 @@ export const Produccion = () => {
         if (!lote) return;
 
         // 🛡️ PRIMARY GUARD: Prevent re-finalizing an already terminated lot (avoids stock duplication)
+        // Silent return — the button is visually disabled so no alert needed
         if (lote.estado === 'terminado' && targetStatus === 'terminado') {
-            alert('Este lote ya está terminado. El stock fue registrado al momento de finalizar la producción.\n\nSi necesitás corregir el stock, contactá al administrador.');
             return;
         }
 
@@ -793,37 +793,42 @@ export const Produccion = () => {
                                     return steps.map((step: any, idx: number) => {
                                         const isCompleted = idx <= currentIdx;
                                         const isCurrent = idx === currentIdx;
-                                        // const isLast = idx === steps.length - 1; // Unused
+                                        // Block re-clicking 'terminado' if lot is already terminated
+                                        const isTerminatedStep = step.nombre.toLowerCase().includes('terminado');
+                                        const isLotTerminated = selectedBatch.estado === 'terminado';
+                                        const isBlockedStep = isTerminatedStep && isLotTerminated;
 
                                         return (
                                             <button
                                                 key={idx}
-                                                // Only allow clicking if not already finished (or allow reverting?)
-                                                // Let's allow clicking any previous or next step for flexibility
-                                                onClick={() => updateStatus(selectedBatch.id, step.nombre)}
-                                                className="relative z-10 flex flex-col items-center gap-3 group"
+                                                onClick={() => !isBlockedStep && updateStatus(selectedBatch.id, step.nombre)}
+                                                disabled={isBlockedStep}
+                                                title={isBlockedStep ? `Lote finalizado — ${selectedBatch.cantidad_real} prendas producidas` : step.nombre}
+                                                className={clsx(
+                                                    "relative z-10 flex flex-col items-center gap-3 group",
+                                                    isBlockedStep ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                                                )}
                                             >
                                                 <div className={clsx(
                                                     "w-12 h-12 rounded-2xl flex items-center justify-center border-4 transition-all duration-300 shadow-sm",
-                                                    isCurrent ? "bg-indigo-600 border-indigo-100 text-white scale-110 shadow-indigo-200" :
-                                                        isCompleted ? "bg-indigo-100 border-indigo-50 text-indigo-600" :
-                                                            "bg-white border-gray-100 text-gray-300 group-hover:border-gray-200"
+                                                    isBlockedStep ? "bg-emerald-500 border-emerald-200 text-white scale-110 shadow-emerald-200" :
+                                                        isCurrent ? "bg-indigo-600 border-indigo-100 text-white scale-110 shadow-indigo-200" :
+                                                            isCompleted ? "bg-indigo-100 border-indigo-50 text-indigo-600" :
+                                                                "bg-white border-gray-100 text-gray-300 group-hover:border-gray-200"
                                                 )}>
-                                                    {/* Dynamic Icons based on name or index? */}
-                                                    {/* Simple logic for standard names, generic for others */}
                                                     {step.nombre.toLowerCase().includes('planif') && <Package className="h-5 w-5" />}
                                                     {step.nombre.toLowerCase().includes('corte') && <Scissors className="h-5 w-5" />}
                                                     {step.nombre.toLowerCase().includes('taller') && <div className="font-black text-xs">MAQ</div>}
                                                     {step.nombre.toLowerCase().includes('terminado') && <CheckCircle className="h-5 w-5" />}
-                                                    {/* Generic Icon for custom steps */}
                                                     {!['planificado', 'corte', 'taller', 'terminado'].some(k => step.nombre.toLowerCase().includes(k)) && (
                                                         <div className="font-black text-xs">{idx + 1}</div>
                                                     )}
                                                 </div>
                                                 <span className={clsx(
                                                     "text-xs font-black uppercase tracking-wider transition-colors max-w-[80px] text-center truncate",
-                                                    isCurrent ? "text-indigo-600" :
-                                                        isCompleted ? "text-indigo-400" : "text-gray-300"
+                                                    isBlockedStep ? "text-emerald-600" :
+                                                        isCurrent ? "text-indigo-600" :
+                                                            isCompleted ? "text-indigo-400" : "text-gray-300"
                                                 )} title={step.nombre}>
                                                     {step.nombre}
                                                 </span>
