@@ -358,6 +358,29 @@ export const Produccion = () => {
 
         const lote = showRealQtyModal;
 
+        // 🛡️ SAFETY GUARD: If lot already has cantidad_real set, it was previously finalized.
+        // Only update the record WITHOUT re-adding stock to prevent duplication.
+        if (lote.cantidad_real && lote.cantidad_real > 0) {
+            try {
+                const totalQty = Object.values(realQtyPerProduct).reduce((sum, qty) => sum + qty, 0);
+                const { error } = await supabase.from('lotes_produccion').update({
+                    cantidad_real: totalQty,
+                    estado: 'terminado',
+                    progreso_porcentaje: 100,
+                    fecha_fin: new Date().toISOString()
+                }).eq('id', lote.id);
+                if (error) throw error;
+                alert('Lote actualizado. El stock NO fue modificado porque este lote ya había sido finalizado anteriormente.');
+            } catch (err: any) {
+                alert('Error: ' + err.message);
+            } finally {
+                setShowRealQtyModal(null);
+                setRealQtyPerProduct({});
+                fetchData();
+            }
+            return;
+        }
+
         try {
             // Calculate total quantity produced (sum of all products)
             const totalQty = Object.values(realQtyPerProduct).reduce((sum, qty) => sum + qty, 0);
@@ -511,6 +534,12 @@ export const Produccion = () => {
     const updateStatus = async (id: string, targetStatus: string) => {
         const lote = lotes.find(l => l.id === id);
         if (!lote) return;
+
+        // 🛡️ PRIMARY GUARD: Prevent re-finalizing an already terminated lot (avoids stock duplication)
+        if (lote.estado === 'terminado' && targetStatus === 'terminado') {
+            alert('Este lote ya está terminado. El stock fue registrado al momento de finalizar la producción.\n\nSi necesitás corregir el stock, contactá al administrador.');
+            return;
+        }
 
         // Get Steps
         const steps = lote.proceso_snapshot?.pasos || [
