@@ -152,10 +152,12 @@ export const Produccion = () => {
 
         const list = [...(newBatch.detalle_rollos || [])];
         // Auto-fill with total available kg from the selected roll
+        // Also store peso_disponible for UI reference (not saved to DB)
         list[index] = {
             rollo_id: selectedRoll.id,
             color: selectedRoll.color || 'Sin color',
-            kg_consumido: Number(selectedRoll.peso_restante) || 0  // Auto-complete with available kg
+            kg_consumido: Number(selectedRoll.peso_restante) || 0,  // Auto-complete with available kg
+            peso_disponible: Number(selectedRoll.peso_restante) || 0  // Reference for UI display
         } as any;
         setNewBatch({ ...newBatch, detalle_rollos: list });
     };
@@ -171,7 +173,7 @@ export const Produccion = () => {
         setNewBatch({ ...newBatch, detalle_rollos: list });
     };
 
-    const handleEditBatch = (batch: LoteProduccion) => {
+    const handleEditBatch = async (batch: LoteProduccion) => {
         setIsEditing(true);
         setEditingId(batch.id);
         // Prepare products IDs
@@ -182,12 +184,32 @@ export const Produccion = () => {
             pIds = [batch.producto_id];
         }
 
+        // Fetch current peso_restante for each roll so we can show availability in the UI
+        let enrichedRollos = batch.detalle_rollos || [];
+        const rolloIds = enrichedRollos.map((r: any) => r.rollo_id).filter(Boolean);
+        if (rolloIds.length > 0) {
+            const { data: rollData } = await supabase
+                .from('rollos_tela')
+                .select('id, peso_restante')
+                .in('id', rolloIds);
+            if (rollData) {
+                const rollMap: Record<string, number> = {};
+                rollData.forEach((r: any) => { rollMap[r.id] = r.peso_restante; });
+                // peso_disponible = current DB value + kg already consumed in this batch
+                // (because those kg were already deducted when the batch was created)
+                enrichedRollos = enrichedRollos.map((r: any) => ({
+                    ...r,
+                    peso_disponible: (rollMap[r.rollo_id] ?? 0) + Number(r.kg_consumido || 0)
+                }));
+            }
+        }
+
         setNewBatch({
             codigo: batch.codigo,
             producto_id: batch.producto_id,
             productos_ids: pIds,
             modelo_corte: batch.modelo_corte,
-            detalle_rollos: batch.detalle_rollos || [],
+            detalle_rollos: enrichedRollos,
             estado: batch.estado,
             fecha_inicio: batch.fecha_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
             propietario: batch.propietario,
@@ -209,11 +231,11 @@ export const Produccion = () => {
 
             // UPDATE EXISTING BATCH
             if (isEditing && editingId) {
-                // 0. Fetch existing product data to PRESERVE distributions/counts
-                const { data: existingLp } = await supabase
-                    .from('lote_productos')
-                    .select('*')
-                    .eq('lote_id', editingId);
+                // 0. Fetch existing lote data to get previous detalle_rollos AND product distributions
+                const [{ data: existingLote }, { data: existingLp }] = await Promise.all([
+                    supabase.from('lotes_produccion').select('detalle_rollos').eq('id', editingId).single(),
+                    supabase.from('lote_productos').select('*').eq('lote_id', editingId)
+                ]);
 
                 const { error: updateError } = await supabase.from('lotes_produccion').update({
                     codigo: newBatch.codigo,
@@ -226,7 +248,38 @@ export const Produccion = () => {
 
                 if (updateError) throw updateError;
 
-                // Update Products Relations: Delete all and Re-insert
+                // 1. Ajustar stock de rollos: comparar kg anteriores vs nuevos
+                const oldRollos: any[] = existingLote?.detalle_rollos || [];
+                const newRollos: any[] = newBatch.detalle_rollos || [];
+
+                // Agrupar kg por rollo_id para calcular deltas
+                const oldKgByRollo: Record<string, number> = {};
+                oldRollos.forEach((r: any) => {
+                    if (r.rollo_id) oldKgByRollo[r.rollo_id] = (oldKgByRollo[r.rollo_id] || 0) + Number(r.kg_consumido || 0);
+                });
+
+                const newKgByRollo: Record<string, number> = {};
+                newRollos.forEach((r: any) => {
+                    if (r.rollo_id) newKgByRollo[r.rollo_id] = (newKgByRollo[r.rollo_id] || 0) + Number(r.kg_consumido || 0);
+                });
+
+                // Obtener todos los rollo_ids involucrados (viejos y nuevos)
+                const allRolloIds = new Set([...Object.keys(oldKgByRollo), ...Object.keys(newKgByRollo)]);
+
+                for (const rolloId of allRolloIds) {
+                    const kgAnterior = oldKgByRollo[rolloId] || 0;
+                    const kgNuevo = newKgByRollo[rolloId] || 0;
+                    if (kgAnterior !== kgNuevo) {
+                        const { error: adjustErr } = await supabase.rpc('adjust_roll_consumption', {
+                            p_rollo_id: rolloId,
+                            p_kg_anterior: kgAnterior,
+                            p_kg_nuevo: kgNuevo
+                        });
+                        if (adjustErr) console.error('Error ajustando rollo:', rolloId, adjustErr);
+                    }
+                }
+
+                // 2. Update Products Relations: Delete all and Re-insert
                 await supabase.from('lote_productos').delete().eq('lote_id', editingId);
 
                 const loteProductos = productosValidos.map((prodId, index) => {
@@ -895,8 +948,17 @@ export const Produccion = () => {
                                                         )}
                                                         {/* Available context for user reference */}
                                                         {roll && (
-                                                            <div className="text-[9px] text-gray-400 mt-1">
-                                                                Disp: {roll.metros_restantes}m / {roll.peso_restante}kg
+                                                            <div className="mt-1.5 space-y-0.5">
+                                                                <div className="text-[9px] text-gray-400 flex justify-between">
+                                                                    <span>Total rollo:</span>
+                                                                    <span className="font-bold text-gray-500">{roll.peso_inicial ?? '-'} kg</span>
+                                                                </div>
+                                                                <div className="text-[9px] flex justify-between">
+                                                                    <span className="text-gray-400">Disponible hoy:</span>
+                                                                    <span className={`font-bold ${Number(roll.peso_restante) <= 0.1 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                                        {roll.peso_restante ?? '-'} kg
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>
@@ -1340,16 +1402,24 @@ export const Produccion = () => {
                                                             <span className="text-xs font-bold text-gray-500">{r.color || '-'}</span>
                                                         </div>
                                                     </div>
-                                                    <div className="w-32">
+                                                    <div className="w-40">
                                                         <div className="relative">
                                                             <label className="text-[9px] font-bold text-gray-400 uppercase absolute -top-3 left-1">Consumo (Kg)</label>
                                                             <FormattedNumberInput
                                                                 placeholder="0"
-                                                                className="w-full bg-white border border-gray-200 p-2 rounded-lg text-sm font-bold text-right text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                                                                className={`w-full bg-white border p-2 rounded-lg text-sm font-bold text-right focus:ring-2 focus:ring-indigo-500 ${(r as any).peso_disponible && Number(r.kg_consumido) > Number((r as any).peso_disponible)
+                                                                    ? 'border-red-400 text-red-600'
+                                                                    : 'border-gray-200 text-indigo-600'
+                                                                    }`}
                                                                 value={Number(r.kg_consumido)}
                                                                 onChange={val => updateRollo(i, 'kg_consumido', val)}
                                                                 suffix={<span className="text-[10px] text-gray-400 font-bold ml-1">kg</span>}
                                                             />
+                                                            {(r as any).peso_disponible != null && (
+                                                                <span className="text-[9px] text-gray-400 block text-right mt-0.5">
+                                                                    Disp: <span className="font-bold text-emerald-600">{Number((r as any).peso_disponible).toFixed(1)} kg</span>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, CreditCard, Truck, ChevronLeft, CheckCircle2, Loader2, ShoppingCart } from 'lucide-react';
 import { useCartDualStore } from '../../store/cartDualStore';
+import { paymentService } from '../../services/paymentService'; // Import payment service
 import { supabase } from '../../lib/supabase';
 
 export const Checkout = () => {
@@ -31,6 +32,9 @@ export const Checkout = () => {
         cuit: '',
         tipoEnvio: 'transporte' // transporte, expreso, retiro
     });
+
+    const [paymentType, setPaymentType] = useState<'total' | 'sena'>('total');
+    const [depositAmount, setDepositAmount] = useState<number>(0);
 
     if (currentItems.length === 0 && !orderSuccess) {
         return (
@@ -88,6 +92,16 @@ export const Checkout = () => {
         setLoading(true);
 
         try {
+            // Validate deposit amount
+            if (paymentType === 'sena' && (depositAmount <= 0 || depositAmount >= finalTotal)) {
+                alert('El monto de la seña debe ser mayor a 0 y menor al total.');
+                setLoading(false);
+                return;
+            }
+
+            const montoPagado = paymentType === 'total' ? finalTotal : depositAmount;
+
+
             // 1. Create Pedido Header
             const pedidoData = {
                 codigo_pedido: `PED-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
@@ -102,7 +116,10 @@ export const Checkout = () => {
                 subtotal_mayorista: isWholesale ? subtotal : 0,
                 total: finalTotal,
                 estado: 'pendiente',
-                estado_pago: 'pendiente'
+                estado_pago: 'pendiente',
+                pago_tipo: paymentType,
+                monto_pagado: 0, // Se actualizará al confirmar pago
+                monto_pendiente: finalTotal // Inicialmente todo pendiente hasta confirmar pago
             };
 
             const { data: pedido, error: pedidoError } = await supabase
@@ -150,8 +167,42 @@ export const Checkout = () => {
                 if (itemsError) throw itemsError;
             }
 
-            setOrderSuccess(pedido.id);
-            clearCart();
+
+
+            // 3. Create MercadoPago Preference
+            const preference = await paymentService.createPaymentPreference(
+                currentItems,
+                {
+                    name: form.nombre,
+                    surname: form.apellido,
+                    email: form.email,
+                    phone: { area_code: '', number: form.whatsapp },
+                    identification: { type: 'DNI', number: '' }, // Add DNI field if strictly needed
+                    address: { street_name: form.direccion, street_number: 0, zip_code: '' }
+                },
+                pedido.codigo_pedido, // External Reference
+                montoPagado,
+                paymentType === 'sena'
+            );
+
+            if (preference && preference.init_point) {
+                // Update pedido with preference ID
+                await supabase
+                    .from('pedidos')
+                    .update({
+                        mercadopago_preference_id: preference.id,
+                        monto_pagado: 0, // Reset to 0 until payment is confirmed via webhook (not implemented yet, but for safety)
+                        monto_pendiente: finalTotal // Full amount pending
+                    })
+                    .eq('id', pedido.id);
+
+                // Redirect to MercadoPago
+                window.location.href = preference.init_point;
+            } else {
+                setOrderSuccess(pedido.id);
+                clearCart();
+            }
+
         } catch (error: any) {
             console.error("Checkout error:", error);
             alert(`Error al procesar pedido: ${error.message}`);
@@ -361,26 +412,76 @@ export const Checkout = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <button
-                                    form="checkout-form"
-                                    type="submit"
-                                    disabled={loading}
-                                    className={`w-full py-5 rounded-2xl font-black text-lg mt-10 flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-2xl relative overflow-hidden ${loading
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'
-                                        }`}
-                                >
-                                    {loading ? (
-                                        <Loader2 className="h-6 w-6 animate-spin" />
-                                    ) : (
-                                        <>
-                                            FINALIZAR COMPRA
-                                            <CheckCircle2 className="h-5 w-5" />
-                                        </>
-                                    )}
-                                </button>
                             </div>
+
+                            <div className="mt-8 space-y-4 pt-8 border-t border-gray-100">
+                                <h4 className="font-black text-gray-900 mb-4">Opciones de Pago</h4>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentType('total')}
+                                        className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all ${paymentType === 'total'
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        PAGO TOTAL
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentType('sena')}
+                                        className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all ${paymentType === 'sena'
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        SEÑAR
+                                    </button>
+                                </div>
+
+                                {paymentType === 'sena' && (
+                                    <div className="bg-blue-50 p-6 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <label className="block text-xs font-black text-blue-600 uppercase tracking-widest mb-2">
+                                            Monto a Señar
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600 font-bold">$</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={finalTotal - 1}
+                                                value={depositAmount || ''}
+                                                onChange={(e) => setDepositAmount(Number(e.target.value))}
+                                                placeholder="Ingrese monto..."
+                                                className="w-full pl-8 pr-4 py-3 rounded-xl border-2 border-blue-200 focus:border-blue-600 focus:ring-0 font-black text-lg text-blue-900 bg-white"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-blue-400 mt-2 font-medium">
+                                            Restaría pagar: <b className="text-blue-600">${(finalTotal - depositAmount).toLocaleString()}</b> al retirar/recibir.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                form="checkout-form"
+                                type="submit"
+                                disabled={loading}
+                                className={`w-full py-5 rounded-2xl font-black text-lg mt-10 flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-2xl relative overflow-hidden ${loading
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'
+                                    }`}
+                            >
+                                {loading ? (
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                ) : (
+                                    <>
+                                        {paymentType === 'total' ? 'PAGAR CON MERCADOPAGO' : 'PAGAR SEÑA CON MERCADOPAGO'}
+                                        <CheckCircle2 className="h-5 w-5" />
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

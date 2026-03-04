@@ -121,13 +121,8 @@ export const Inventario = () => {
         try {
             if (activeTab === 'telas') {
                 if (editingId) {
-                    // Update single logic
-                    const payload = {
-                        ...newTela,
-                        metros_restantes: newTela.metros_iniciales,
-                        peso_restante: newTela.peso_inicial
-                    };
-                    const { error } = await supabase.from('rollos_tela').update(payload).eq('id', editingId);
+                    // Update single logic — use exact values the user entered (do NOT override with initials)
+                    const { error } = await supabase.from('rollos_tela').update(newTela).eq('id', editingId);
                     if (error) throw error;
                 } else {
                     // BATCH INSERT
@@ -485,30 +480,59 @@ export const Inventario = () => {
                                                                 </div>
                                                                 <div className="space-y-2 mt-3">
                                                                     <div className="flex justify-between items-center text-sm">
-                                                                        <div className="flex items-center gap-1.5 text-gray-600">
-                                                                            <Scale className="h-3.5 w-3.5" />
-                                                                            <span>Peso</span>
+                                                                        {/* Peso breakdown: iniciales / utilizados / restantes */}
+                                                                        {(() => {
+                                                                            const inicial = Number(t.peso_inicial) || 0;
+                                                                            const restante = Number(t.peso_restante) || 0;
+                                                                            const utilizado = Math.max(0, inicial - restante);
+                                                                            const pct = inicial > 0 ? Math.min(100, (utilizado / inicial) * 100) : 0;
+                                                                            return (
+                                                                                <div className="space-y-2">
+                                                                                    {/* 3-column stats */}
+                                                                                    <div className="grid grid-cols-3 gap-1 text-center">
+                                                                                        <div className="bg-gray-50 rounded-lg p-1.5">
+                                                                                            <span className="block text-[9px] font-bold uppercase text-gray-400 leading-tight">Total</span>
+                                                                                            <span className="block font-black text-gray-700 text-sm">{inicial > 0 ? inicial : '-'}</span>
+                                                                                            <span className="block text-[9px] text-gray-400">kg</span>
+                                                                                        </div>
+                                                                                        <div className="bg-amber-50 rounded-lg p-1.5">
+                                                                                            <span className="block text-[9px] font-bold uppercase text-amber-500 leading-tight">Usado</span>
+                                                                                            <span className="block font-black text-amber-600 text-sm">{utilizado > 0 ? utilizado.toFixed(1) : '0'}</span>
+                                                                                            <span className="block text-[9px] text-amber-400">kg</span>
+                                                                                        </div>
+                                                                                        <div className={clsx("rounded-lg p-1.5", isAgotado ? "bg-red-50" : "bg-emerald-50")}>
+                                                                                            <span className={clsx("block text-[9px] font-bold uppercase leading-tight", isAgotado ? "text-red-400" : "text-emerald-500")}>Resta</span>
+                                                                                            <span className={clsx("block font-black text-sm", isAgotado ? "text-red-500" : "text-emerald-600")}>{restante}</span>
+                                                                                            <span className={clsx("block text-[9px]", isAgotado ? "text-red-300" : "text-emerald-400")}>kg</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {/* Progress bar */}
+                                                                                    {inicial > 0 && (
+                                                                                        <div>
+                                                                                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                                                                <div
+                                                                                                    className={clsx("h-1.5 rounded-full transition-all", isAgotado ? "bg-red-400" : pct > 70 ? "bg-amber-400" : "bg-emerald-400")}
+                                                                                                    style={{ width: `${pct}%` }}
+                                                                                                />
+                                                                                            </div>
+                                                                                            <div className="text-[9px] text-gray-400 text-right mt-0.5">{pct.toFixed(0)}% usado</div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                        <div className="flex justify-between items-center text-sm">
+                                                                            <div className="flex items-center gap-1.5 text-gray-600">
+                                                                                <Package className="h-3.5 w-3.5" />
+                                                                                <span>Ancho</span>
+                                                                            </div>
+                                                                            <span className="font-medium text-gray-500">{t.ancho_cm || '-'} cm</span>
                                                                         </div>
-                                                                        <span className="font-black text-2xl text-blue-700">{t.peso_restante !== null ? t.peso_restante : '-'} <span className="text-sm font-bold text-gray-400">kg</span></span>
                                                                     </div>
-                                                                    <div className="flex justify-between items-center text-sm mt-1">
-                                                                        <div className="flex items-center gap-1.5 text-gray-600">
-                                                                            <Ruler className="h-3.5 w-3.5" />
-                                                                            <span>Metros</span>
-                                                                        </div>
-                                                                        <span className={clsx("font-bold", isAgotado ? "text-red-400 line-through decoration-2" : "text-gray-900")}>{t.metros_restantes}m</span>
+                                                                    <div className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 flex justify-between">
+                                                                        <span>Valor Est.</span>
+                                                                        <span>${((t.metros_restantes || 0) * (t.costo_por_metro || 0)).toLocaleString()}</span>
                                                                     </div>
-                                                                    <div className="flex justify-between items-center text-sm">
-                                                                        <div className="flex items-center gap-1.5 text-gray-600">
-                                                                            <Package className="h-3.5 w-3.5" />
-                                                                            <span>Ancho</span>
-                                                                        </div>
-                                                                        <span className="font-medium text-gray-500">{t.ancho_cm || '-'} cm</span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 flex justify-between">
-                                                                    <span>Valor Est.</span>
-                                                                    <span>${((t.metros_restantes || 0) * (t.costo_por_metro || 0)).toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                         );
@@ -517,12 +541,10 @@ export const Inventario = () => {
                                             </div>
                                         ))}
                                     </div>
-                                )
-                                }
+                                )}
                             </div>
                         );
-                    })
-                    }
+                    })}
                 </div>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
