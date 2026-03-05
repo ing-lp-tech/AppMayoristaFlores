@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Proveedor } from '../../types';
 import { proveedorService } from '../../services/proveedorService';
-import { Plus, Search, Edit, Trash2, Phone, Mail, Building, Percent } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Phone, Mail, Layers, Package, Wrench, Percent } from 'lucide-react';
 import clsx from 'clsx';
 
 // Default empty provider
@@ -134,7 +134,9 @@ export const Proveedores = () => {
                                         provider.tipo === 'insumo' ? "bg-orange-100 text-orange-600" :
                                             "bg-blue-100 text-blue-600"
                                 )}>
-                                    <Building className="h-5 w-5" />
+                                    {provider.tipo === 'tela' && <Layers className="h-5 w-5" />}
+                                    {provider.tipo === 'insumo' && <Package className="h-5 w-5" />}
+                                    {provider.tipo === 'taller' && <Wrench className="h-5 w-5" />}
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-gray-900">{provider.nombre}</h3>
