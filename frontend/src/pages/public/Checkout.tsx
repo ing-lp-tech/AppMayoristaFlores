@@ -133,7 +133,7 @@ export const Checkout = () => {
         });
     }, [mpPreferenceId]);
 
-    if (currentItems.length === 0 && !orderSuccess) {
+    if (currentItems.length === 0 && !orderSuccess && !mpPreferenceId) {
         return (
             <div className="max-w-7xl mx-auto px-4 py-20 text-center">
                 <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-gray-100 max-w-lg mx-auto">
@@ -326,10 +326,8 @@ export const Checkout = () => {
                 // Intentar inicializar Wallet Brick (Checkout Pro)
                 const mp = getMPInstance();
                 if (mp) {
-                    // El brick se monta en el div 'mp-wallet-container'
-                    // Guardamos el preference_id para que useEffect lo procese
+                    clearCart(); // Limpiar carrito antes para evitar race condition
                     setMpPreferenceId(preference.id);
-                    clearCart();
                 } else {
                     // Fallback: redirigir al init_point si el SDK no está disponible
                     window.location.href = preference.init_point;
