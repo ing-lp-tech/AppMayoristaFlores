@@ -8,7 +8,6 @@ import {
     Package,
     TrendingUp,
     AlertTriangle,
-    Scissors,
     Users,
     DollarSign,
     ChevronRight,
@@ -38,8 +37,9 @@ interface LoteReciente {
     progreso_porcentaje: number;
     paso_actual_index: number;
     proceso_snapshot: any;
-    productos?: { producto?: { nombre: string } }[];
-    producto?: { nombre: string };
+    // Supabase puede retornar tanto objeto como array según la relación
+    productos?: any[];
+    producto?: any;
 }
 
 interface PedidoReciente {
@@ -132,7 +132,7 @@ export const Dashboard = () => {
                     .select('id', { count: 'exact' }),
             ]);
 
-            const todosLotes: LoteReciente[] = lotesRes.data || [];
+            const todosLotes: LoteReciente[] = (lotesRes.data || []) as LoteReciente[];
             const lotesActivos = todosLotes.filter(l => l.estado !== 'terminado').length;
             const lotesTerminados = todosLotes.filter(l => l.estado === 'terminado').length;
 
