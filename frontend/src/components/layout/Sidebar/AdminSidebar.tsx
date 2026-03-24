@@ -12,7 +12,9 @@ import {
     Shield,
     ShoppingBag,
     UsersRound,
-    DollarSign
+    DollarSign,
+    Ticket,
+    Settings
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import clsx from 'clsx';
@@ -87,6 +89,18 @@ export const AdminSidebar = () => {
             to: '/admin/equipo',
             icon: Shield,
             label: 'Equipo',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/cupones',
+            icon: Ticket,
+            label: 'Cupones',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/configuracion',
+            icon: Settings,
+            label: 'Configuración',
             allowed: ['owner', 'admin']
         },
     ];

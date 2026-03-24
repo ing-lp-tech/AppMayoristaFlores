@@ -11,6 +11,7 @@ interface ExtendedRollo extends RolloTela {
     peso_inicial?: number;
     peso_restante?: number;
     propietario?: string;
+    proveedor_nombre?: string;
 }
 
 export const Inventario = () => {
@@ -97,7 +98,7 @@ export const Inventario = () => {
     const fetchData = async () => {
         try {
             const [telasRes, insumosRes, provRes, typesRes] = await Promise.all([
-                supabase.from('rollos_tela').select('*').order('creado_en', { ascending: false }),
+                supabase.from('rollos_tela').select('*, proveedores(nombre)').order('creado_en', { ascending: false }),
                 supabase.from('insumos').select('*').order('creado_en', { ascending: false }),
                 supabase.from('proveedores').select('*').order('nombre', { ascending: true }),
                 supabase.from('tipos_tela').select('*').order('nombre', { ascending: true })
@@ -106,7 +107,12 @@ export const Inventario = () => {
             if (telasRes.error) throw telasRes.error;
             if (insumosRes.error) throw insumosRes.error;
 
-            setTelas(telasRes.data || []);
+            // Flatten the nested proveedor name into the rollo object
+            const telasWithProveedor = (telasRes.data || []).map((r: any) => ({
+                ...r,
+                proveedor_nombre: r.proveedores?.nombre || null
+            }));
+            setTelas(telasWithProveedor);
             setInsumos(insumosRes.data || []);
             setProveedores(provRes.data || []);
             setAvailableTypes(typesRes.data || []);
@@ -467,6 +473,11 @@ export const Inventario = () => {
                                                                                 return null;
                                                                             })()}
                                                                         </div>
+                                                                        {t.proveedor_nombre && (
+                                                                            <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100 flex items-center gap-0.5">
+                                                                                🏭 {t.proveedor_nombre}
+                                                                            </span>
+                                                                        )}
                                                                         {t.propietario && (
                                                                             <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
                                                                                 {t.propietario}
@@ -615,18 +626,33 @@ export const Inventario = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="mb-4">
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Propietario</label>
-                                                <select
-                                                    className="w-full border p-2 rounded font-medium text-blue-900"
-                                                    value={newTela.propietario || ''}
-                                                    onChange={e => setNewTela({ ...newTela, propietario: e.target.value })}
-                                                >
-                                                    <option value="">-- Sin asignar --</option>
-                                                    <option value="Soledad">Soledad</option>
-                                                    <option value="Tatiana">Tatiana</option>
-                                                    <option value="Florinda">Florinda</option>
-                                                </select>
+                                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Propietario (Socio)</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded font-medium text-blue-900"
+                                                        value={newTela.propietario || ''}
+                                                        onChange={e => setNewTela({ ...newTela, propietario: e.target.value })}
+                                                    >
+                                                        <option value="">-- Sin asignar --</option>
+                                                        <option value="Soledad">Soledad</option>
+                                                        <option value="Tatiana">Tatiana</option>
+                                                        <option value="Florinda">Florinda</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded text-purple-900 font-medium"
+                                                        value={(newTela as any).proveedor_id || ''}
+                                                        onChange={e => setNewTela({ ...newTela, proveedor_id: e.target.value || null } as any)}
+                                                    >
+                                                        <option value="">-- Sin proveedor --</option>
+                                                        {proveedores.filter(p => p.tipo === 'tela').map(p => (
+                                                            <option key={p.id} value={p.id}>{p.nombre}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-4">

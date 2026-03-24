@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
-import { Truck, ShieldCheck, Clock, Loader2 } from 'lucide-react';
+import { Truck, ShieldCheck, Clock, Loader2, Ticket } from 'lucide-react';
 import { ProductCard } from '../../components/ecommerce/minorista/ProductCardMinorista/ProductCardMinorista';
 import { supabase } from '../../lib/supabase';
 import { productService } from '../../services/productService';
-import type { Producto, ProductoTalla } from '../../types';
+import type { Producto, ProductoTalla, CuponDescuento } from '../../types';
 
 export const Home = () => {
     const [emblaRef] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 4000 })]);
@@ -14,6 +14,10 @@ export const Home = () => {
 
     const [categories, setCategories] = useState<any[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+    // Coupon logic
+    const [activeCoupon, setActiveCoupon] = useState<CuponDescuento | null>(null);
+    const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
 
     // Hero Images Data
     const heroSlides = [
@@ -51,6 +55,18 @@ export const Home = () => {
                 const { data: cats } = await supabase.from('categorias').select('*').order('orden');
                 if (cats) setCategories(cats);
 
+                // Fetch active Coupon
+                const now = new Date().toISOString();
+                const { data: cupon } = await supabase
+                    .from('cupones_descuento')
+                    .select('*')
+                    .eq('activo', true)
+                    .gte('fecha_expiracion', now)
+                    .order('fecha_expiracion', { ascending: true })
+                    .limit(1)
+                    .single();
+                if (cupon) setActiveCoupon(cupon);
+
             } catch (error) {
                 console.error("Error loading home data:", error);
             } finally {
@@ -59,6 +75,29 @@ export const Home = () => {
         };
         loadData();
     }, []);
+
+    // Timer logic
+    useEffect(() => {
+        if (!activeCoupon) return;
+        const interval = setInterval(() => {
+            const exp = new Date(activeCoupon.fecha_expiracion).getTime();
+            const now = new Date().getTime();
+            const diff = exp - now;
+
+            if (diff <= 0) {
+                setTimeLeft(null);
+                setActiveCoupon(null);
+                clearInterval(interval);
+                return;
+            }
+
+            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            setTimeLeft({ h, m, s });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [activeCoupon]);
 
     // Filter Logic
     const filteredProducts = selectedCategory
@@ -72,6 +111,26 @@ export const Home = () => {
 
     return (
         <div className="bg-white min-h-screen font-sans pb-20">
+            {/* Promo Banner */}
+            {activeCoupon && timeLeft && (
+                <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white py-2 px-4 text-center shadow-md relative z-40">
+                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-6">
+                        <div className="flex items-center gap-2 font-black text-sm md:text-base uppercase tracking-wider">
+                            <Ticket className="h-5 w-5 animate-pulse" />
+                            <span>¡Oferta Relámpago!</span>
+                        </div>
+                        <p className="text-sm md:text-base font-medium">
+                            Usa el código <span className="font-black bg-white text-red-600 px-2 py-0.5 rounded ml-1 mr-1 shadow-sm">{activeCoupon.codigo}</span>
+                            para un <span className="font-black text-yellow-300 text-lg md:text-xl drop-shadow-md">{activeCoupon.descuento_porcentaje}% OFF</span>
+                        </p>
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-lg bg-black/20 px-3 py-1 rounded-lg border border-white/10 shadow-inner">
+                            <Clock className="h-4 w-4" />
+                            <span>{String(timeLeft.h).padStart(2, '0')}:{String(timeLeft.m).padStart(2, '0')}:{String(timeLeft.s).padStart(2, '0')}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Hero Carousel */}
             <div className="relative overflow-hidden mb-8" ref={emblaRef}>
                 <div className="flex">

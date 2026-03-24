@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Proveedor } from '../../types';
 import { proveedorService } from '../../services/proveedorService';
-import { Plus, Search, Edit, Trash2, Phone, Mail, Layers, Package, Wrench, Percent } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Phone, Mail, Layers, Package, Wrench, Percent, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 
 // Default empty provider
@@ -11,6 +11,8 @@ const DEFAULT_PROVIDER: Partial<Proveedor> = {
     tipo: 'tela',
     telefono: '',
     email: '',
+    direccion: '',
+    observaciones: '',
     saldo_actual: 0,
 };
 
@@ -189,6 +191,12 @@ export const Proveedores = () => {
                                     <span>{provider.email}</span>
                                 </div>
                             )}
+                            {provider.direccion && (
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-gray-400" />
+                                    <span className="truncate">{provider.direccion}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -254,6 +262,32 @@ export const Proveedores = () => {
                                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                                             className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
                                             placeholder="Opcional"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Dirección
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.direccion || ''}
+                                            onChange={e => setFormData({ ...formData, direccion: e.target.value })}
+                                            className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Opcional"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Observaciones
+                                        </label>
+                                        <textarea
+                                            value={formData.observaciones || ''}
+                                            onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+                                            className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 resize-none"
+                                            rows={6}
+                                            placeholder="Notas adicionales..."
                                         />
                                     </div>
                                 </div>

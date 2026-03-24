@@ -28,7 +28,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                 {/* Image Container */}
                 <div className="aspect-[3/4] bg-gray-50 overflow-hidden relative">
                     <img
-                        src={product.imagen_principal || 'https://via.placeholder.com/400x600?text=Sin+Imagen'}
+                        src={product.imagen_principal || 'https://placehold.co/400x600/e2e8f0/64748b?text=Sin+Imagen'}
                         alt={product.nombre}
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                     />

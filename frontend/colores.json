@@ -1,0 +1,22 @@
+[
+  {
+    "colores": [
+      {
+        "hex": "#1E3A8A",
+        "nombre": "Marino"
+      },
+      {
+        "hex": "#FAEBD7",
+        "nombre": "Crema melange"
+      },
+      {
+        "hex": null,
+        "nombre": "Vizon melange"
+      },
+      {
+        "hex": "#7C2D12",
+        "nombre": "Chocolate melange"
+      }
+    ]
+  }
+]

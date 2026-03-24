@@ -174,11 +174,30 @@ export const AdminProducts = () => {
                 // 2. Update Product
                 await productService.updateProduct(formData.id, cleanProductData);
 
-                // 3. Update Talles (Stock)
-                const tallesToUpdate = tallesForm.map(t => ({
-                    ...t,
-                    producto_id: formData.id
-                }));
+                // 3. Update Talles — IMPORTANTE: preservar stock y stock_por_color de la DB.
+                // tallesForm viene de handleEdit que cargó los datos reales de la DB, por lo
+                // que t.stock y t.stock_por_color contienen los valores correctos. Solo se
+                // permite modificar config (talla_codigo, talla_nombre, orden, etc.) y el
+                // stock manual cuando NO hay colores definidos.
+                const tallesToUpdate = (tallesForm as any[]).map(t => {
+                    const hasColors = formData.colores && formData.colores.length > 0;
+                    return {
+                        id: t.id,
+                        producto_id: formData.id,
+                        talla_codigo: t.talla_codigo,
+                        talla_nombre: t.talla_nombre,
+                        orden: t.orden,
+                        incluido_curva: t.incluido_curva,
+                        stock_minimo: t.stock_minimo,
+                        disponible_publico: t.disponible_publico,
+                        // Si hay colores, el stock viene de stock_por_color; si no, del input manual
+                        stock: hasColors
+                            ? (t.stock_por_color ? Object.values(t.stock_por_color).reduce((s: number, v: any) => s + (Number(v) || 0), 0) : (t.stock || 0))
+                            : (t.stock || 0),
+                        // Preservar el stock por color existente (puede haber sido seteado por lotes)
+                        stock_por_color: t.stock_por_color || {}
+                    };
+                });
                 await productService.updateTalles(tallesToUpdate);
 
                 alert('Producto y stock actualizados con éxito');
@@ -269,6 +288,23 @@ export const AdminProducts = () => {
     const updateTalla = (index: number, field: keyof Omit<ProductoTalla, 'id' | 'producto_id'>, value: any) => {
         const newTalles = [...tallesForm];
         newTalles[index] = { ...newTalles[index], [field]: value };
+        setTallesForm(newTalles);
+    };
+
+    const updateStockPorColor = (talleIndex: number, colorName: string, amount: number) => {
+        const newTalles = [...tallesForm];
+        const talle = newTalles[talleIndex];
+        const prevColors = talle.stock_por_color || {};
+        const newColors = { ...prevColors, [colorName]: Math.max(0, amount) };
+
+        // El stock total del talle ahora es la suma de sus colores
+        const newTotalStock = Object.values(newColors).reduce((sum, val) => sum + val, 0);
+
+        newTalles[talleIndex] = {
+            ...talle,
+            stock_por_color: newColors,
+            stock: newTotalStock
+        };
         setTallesForm(newTalles);
     };
 
@@ -679,52 +715,77 @@ export const AdminProducts = () => {
                                                 <div className="col-span-1 text-right">Acción</div>
                                             </div>
 
-                                            {tallesForm.map((t, idx) => (
-                                                <div key={idx} className="grid grid-cols-6 gap-4 items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-100 transition-all">
-                                                    <input
-                                                        type="text"
-                                                        className="w-full rounded-xl border-gray-200 font-bold py-2 px-3 text-sm focus:ring-blue-600"
-                                                        placeholder="S, 38, etc"
-                                                        value={t.talla_codigo}
-                                                        onChange={e => updateTalla(idx, 'talla_codigo', e.target.value)}
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        className="w-full rounded-xl border-gray-200 font-medium py-2 px-3 text-sm focus:ring-blue-600"
-                                                        placeholder="Nombre"
-                                                        value={t.talla_nombre}
-                                                        onChange={e => updateTalla(idx, 'talla_nombre', e.target.value)}
-                                                    />
-                                                    <FormattedNumberInput
-                                                        className="w-full rounded-xl border-gray-200 font-black py-2 px-3 text-sm focus:ring-blue-600"
-                                                        value={t.stock}
-                                                        onChange={val => updateTalla(idx, 'stock', val)}
-                                                    />
-                                                    <FormattedNumberInput
-                                                        className="w-full rounded-xl border-gray-200 font-bold py-2 px-3 text-sm focus:ring-blue-600 text-red-500"
-                                                        value={t.stock_minimo}
-                                                        onChange={val => updateTalla(idx, 'stock_minimo', val)}
-                                                    />
-                                                    <div className="flex justify-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => updateTalla(idx, 'incluido_curva', !t.incluido_curva)}
-                                                            className={`p-2 rounded-lg transition-all ${t.incluido_curva ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}
-                                                        >
-                                                            <Check className="h-4 w-4 stroke-[4]" />
-                                                        </button>
+                                            {tallesForm.map((t, idx) => {
+                                                const hasColors = formData.colores && formData.colores.length > 0;
+                                                return (
+                                                    <div key={idx} className="flex flex-col gap-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-100 transition-all">
+                                                        <div className="grid grid-cols-6 gap-4 items-center">
+                                                            <input
+                                                                type="text"
+                                                                className="w-full rounded-xl border-gray-200 font-bold py-2 px-3 text-sm focus:ring-blue-600"
+                                                                placeholder="S, 38, etc"
+                                                                value={t.talla_codigo}
+                                                                onChange={e => updateTalla(idx, 'talla_codigo', e.target.value)}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="w-full rounded-xl border-gray-200 font-medium py-2 px-3 text-sm focus:ring-blue-600"
+                                                                placeholder="Nombre"
+                                                                value={t.talla_nombre}
+                                                                onChange={e => updateTalla(idx, 'talla_nombre', e.target.value)}
+                                                            />
+                                                            <FormattedNumberInput
+                                                                className={`w-full rounded-xl border-gray-200 font-black py-2 px-3 text-sm ${hasColors ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'focus:ring-blue-600'}`}
+                                                                value={t.stock}
+                                                                onChange={val => !hasColors && updateTalla(idx, 'stock', val)}
+                                                            />
+                                                            <FormattedNumberInput
+                                                                className="w-full rounded-xl border-gray-200 font-bold py-2 px-3 text-sm focus:ring-blue-600 text-red-500"
+                                                                value={t.stock_minimo}
+                                                                onChange={val => updateTalla(idx, 'stock_minimo', val)}
+                                                            />
+                                                            <div className="flex justify-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => updateTalla(idx, 'incluido_curva', !t.incluido_curva)}
+                                                                    className={`p-2 rounded-lg transition-all ${t.incluido_curva ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}
+                                                                >
+                                                                    <Check className="h-4 w-4 stroke-[4]" />
+                                                                </button>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setTallesForm(tallesForm.filter((_, i) => i !== idx))}
+                                                                    className="p-2 text-red-300 hover:text-red-500"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {hasColors && (
+                                                            <div className="mt-2 pt-3 border-t border-gray-100">
+                                                                <span className="text-[10px] font-black uppercase text-gray-400 block mb-2">Stock por color (Talle {t.talla_codigo || '?'})</span>
+                                                                <div className="flex flex-wrap gap-3">
+                                                                    {formData.colores!.map(c => (
+                                                                        <div key={c.nombre} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm">
+                                                                            <div className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: c.hex }}></div>
+                                                                            <span className="text-xs font-bold text-gray-700 truncate max-w-[80px]">{c.nombre}</span>
+                                                                            <input
+                                                                                type="number" min="0"
+                                                                                className="w-14 rounded-lg border-gray-200 text-xs p-1 text-center font-black focus:ring-blue-600"
+                                                                                value={t.stock_por_color?.[c.nombre] || 0}
+                                                                                onChange={e => updateStockPorColor(idx, c.nombre, parseInt(e.target.value) || 0)}
+                                                                            />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setTallesForm(tallesForm.filter((_, i) => i !== idx))}
-                                                            className="p-2 text-red-300 hover:text-red-500"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                         </div>
                                     </div>
                                 )}

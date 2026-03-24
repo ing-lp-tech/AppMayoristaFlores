@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { ShoppingCart, User } from 'lucide-react';
 import { useCartDualStore } from '../../store/cartDualStore';
-import { ModeSelector } from '../ecommerce/dual/ModeSelector/ModeSelector';
 import { CartDrawer } from '../ecommerce/cart/CartDrawer';
+import { ModeSelector } from '../ecommerce/dual/ModeSelector/ModeSelector';
+import { supabase } from '../../lib/supabase';
 
 export const PublicLayout = () => {
     const { getTotals } = useCartDualStore();
@@ -11,6 +12,26 @@ export const PublicLayout = () => {
 
     // Local state for cart drawer since toggleCart wasn't in the new store yet
     const [isCartOpen, setIsCartOpen] = useState(false);
+
+    // System Config
+    const [systemWhatsApp, setSystemWhatsApp] = useState('5491126879409');
+
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                const { data } = await supabase
+                    .from('configuracion_sistema')
+                    .select('whatsapp_pedidos')
+                    .limit(1);
+                if (data && data.length > 0 && data[0].whatsapp_pedidos) {
+                    setSystemWhatsApp(data[0].whatsapp_pedidos);
+                }
+            } catch (err) {
+                console.error("Error cargando configuración:", err);
+            }
+        };
+        loadConfig();
+    }, []);
 
     return (
         <div className="min-h-screen flex flex-col bg-white">
@@ -85,7 +106,7 @@ export const PublicLayout = () => {
                             <h3 className="text-sm font-bold text-gray-900 tracking-wider uppercase">Contacto</h3>
                             <p className="mt-4 text-base text-gray-500">
                                 ventas@textilpymes.com<br />
-                                WhatsApp: +54 9 11 1234 5678
+                                WhatsApp: +{systemWhatsApp}
                             </p>
                         </div>
                         <div>
@@ -145,7 +166,7 @@ export const PublicLayout = () => {
             </footer>
             {/* Floating WhatsApp Button */}
             <a
-                href="https://wa.me/5491126879409"
+                href={`https://wa.me/${systemWhatsApp}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="fixed bottom-6 left-6 z-50 bg-[#25D366] text-white p-4 rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-110 hover:shadow-[0_6px_16px_rgba(37,211,102,0.4)] transition-all duration-300 flex items-center justify-center group"

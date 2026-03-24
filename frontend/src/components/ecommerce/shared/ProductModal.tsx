@@ -34,9 +34,23 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
     // Helper to update matrix
     const handleQuantityChange = (colorName: string, talleId: string, delta: number) => {
         const key = `${colorName}::${talleId}`;
+        const talle = product.producto_talles.find(t => t.id === talleId);
+        if (!talle) return;
+
+        // El máximo disponible es el stock por color, si no existe o es "Único", usamos el stock general del talle
+        const maxAvailable = product.colores && product.colores.length > 0 && colorName !== 'Único'
+            ? (talle.stock_por_color?.[colorName] || 0)
+            : (talle.stock || 0);
+
         setMatrixQuantities(prev => {
             const current = prev[key] || 0;
             const newVal = Math.max(0, current + delta);
+
+            if (newVal > maxAvailable) {
+                alert(`Sólo ${maxAvailable} unidades disponibles en color ${colorName}.`);
+                return prev;
+            }
+
             if (newVal === 0) {
                 const { [key]: _, ...rest } = prev;
                 return rest;
@@ -107,9 +121,22 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
             }
 
             const selectedSize = tallesDisponibles.find(t => t.id === selectedSizeId);
-            if (selectedSize && selectedSize.stock <= 0) {
-                alert('Lo sentimos, este talle no tiene stock');
+            if (!selectedSize) {
+                alert('Error al seleccionar el talle');
                 return;
+            }
+
+            if (selectedSize.stock <= 0) {
+                alert('Lo sentimos, este talle no tiene stock general');
+                return;
+            }
+
+            if (product.colores && product.colores.length > 0 && selectedColor) {
+                const colorStock = selectedSize.stock_por_color?.[selectedColor.nombre] || 0;
+                if (colorStock <= 0) {
+                    alert(`Lo sentimos, no hay stock en talla ${selectedSize.talla_codigo} color ${selectedColor.nombre}.`);
+                    return;
+                }
             }
 
             const fullTalle = tallesDisponibles.find(t => t.id === selectedSizeId);
@@ -182,7 +209,7 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                     </>
                                 ) : (
                                     <img
-                                        src={product.imagen_principal || 'https://via.placeholder.com/600x800'}
+                                        src={product.imagen_principal || 'https://placehold.co/600x800/e2e8f0/64748b?text=Sin+Imagen'}
                                         alt={product.nombre}
                                         className="w-full h-full object-cover"
                                     />
@@ -293,51 +320,88 @@ export const ProductModal = ({ product, isOpen, onClose }: ProductModalProps) =>
                                             </div>
 
                                             <div className="flex flex-wrap gap-2">
-                                                {tallesDisponibles.map(t => (
-                                                    <button
-                                                        key={t.id}
-                                                        onClick={() => setSelectedSizeId(t.id)}
-                                                        disabled={t.stock <= 0}
-                                                        className={`min-w-[50px] h-12 flex flex-col items-center justify-center rounded-xl font-bold transition-all border-2 relative ${selectedSizeId === t.id
-                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
-                                                            : t.stock <= 0
-                                                                ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50'
-                                                                : 'bg-white border-gray-100 text-gray-900 hover:border-gray-200 hover:bg-gray-50'
-                                                            }`}
-                                                    >
-                                                        <span className="text-sm">{t.talla_codigo}</span>
-                                                    </button>
-                                                ))}
+                                                {tallesDisponibles.map(t => {
+                                                    const hasGlobalStock = t.stock > 0;
+                                                    const stockForSelectedColor = selectedColor ? (t.stock_por_color?.[selectedColor.nombre] || 0) : t.stock;
+                                                    const isTotallyDisabled = !hasGlobalStock;
+                                                    const isConflictWithColor = selectedColor && stockForSelectedColor <= 0;
+                                                    const isSelected = selectedSizeId === t.id;
+
+                                                    return (
+                                                        <button
+                                                            key={t.id}
+                                                            onClick={() => {
+                                                                if (isTotallyDisabled) return;
+                                                                setSelectedSizeId(t.id);
+                                                                if (isConflictWithColor) setSelectedColor(undefined);
+                                                            }}
+                                                            disabled={isTotallyDisabled}
+                                                            className={`min-w-[50px] h-12 flex flex-col items-center justify-center rounded-xl font-bold transition-all border-2 relative ${isSelected
+                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
+                                                                : isTotallyDisabled
+                                                                    ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40'
+                                                                    : isConflictWithColor
+                                                                        ? 'bg-white border-dashed border-gray-300 text-gray-400 hover:border-gray-400 opacity-70'
+                                                                        : 'bg-white border-gray-100 text-gray-900 hover:border-gray-200 hover:bg-gray-50'
+                                                                }`}
+                                                            title={isConflictWithColor ? 'Sin stock en el color seleccionado (click para deseleccionar color)' : ''}
+                                                        >
+                                                            <span className="text-sm">{t.talla_codigo}</span>
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
 
-                                            {/* Color Selection - Only if product has colors and retail mode */}
                                             {product.colores && product.colores.length > 0 && (
                                                 <div className="mt-4">
                                                     <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-3">Seleccionar Color</h4>
                                                     <div className="flex flex-wrap gap-3">
-                                                        {product.colores.map((c, idx) => (
-                                                            <button
-                                                                key={idx}
-                                                                onClick={() => setSelectedColor(c)}
-                                                                className={`group relative flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border-2 transition-all ${selectedColor?.nombre === c.nombre
-                                                                    ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100'
-                                                                    : 'border-transparent hover:border-gray-200 bg-gray-50'
-                                                                    }`}
-                                                            >
-                                                                <span
-                                                                    className="w-6 h-6 rounded-full border border-gray-200 shadow-sm"
-                                                                    style={{ backgroundColor: c.hex }}
-                                                                />
-                                                                <span className={`text-xs font-bold ${selectedColor?.nombre === c.nombre ? 'text-blue-700' : 'text-gray-600'}`}>
-                                                                    {c.nombre}
-                                                                </span>
-                                                                {selectedColor?.nombre === c.nombre && (
-                                                                    <div className="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full p-0.5">
-                                                                        <Check className="h-2 w-2" />
-                                                                    </div>
-                                                                )}
-                                                            </button>
-                                                        ))}
+                                                        {product.colores.map((c, idx) => {
+                                                            // Check max stock for this color across all sizes
+                                                            const maxColorStock = tallesDisponibles.reduce((sum, t) => sum + (t.stock_por_color?.[c.nombre] || 0), 0);
+                                                            const isTotallyDisabled = maxColorStock <= 0;
+
+                                                            const colorStockInSelectedSize = selectedSizeId
+                                                                ? (tallesDisponibles.find(t => t.id === selectedSizeId)?.stock_por_color?.[c.nombre] || 0)
+                                                                : null;
+
+                                                            const isConflictWithSize = selectedSizeId && colorStockInSelectedSize === 0;
+                                                            const isSelected = selectedColor?.nombre === c.nombre;
+
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => {
+                                                                        if (isTotallyDisabled) return;
+                                                                        setSelectedColor(c);
+                                                                        if (isConflictWithSize) setSelectedSizeId('');
+                                                                    }}
+                                                                    disabled={isTotallyDisabled}
+                                                                    title={isConflictWithSize ? 'Sin stock en talle seleccionado (click para deseleccionar talle)' : ''}
+                                                                    className={`group relative flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border-2 transition-all ${isTotallyDisabled
+                                                                        ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50 grayscale'
+                                                                        : isConflictWithSize
+                                                                            ? 'border-dashed border-gray-300 opacity-70 hover:opacity-100'
+                                                                            : isSelected
+                                                                                ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100'
+                                                                                : 'border-transparent hover:border-gray-200 bg-gray-50'
+                                                                        }`}
+                                                                >
+                                                                    <span
+                                                                        className="w-6 h-6 rounded-full border border-gray-200 shadow-sm"
+                                                                        style={{ backgroundColor: c.hex }}
+                                                                    />
+                                                                    <span className={`text-xs font-bold ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                                                                        {c.nombre}
+                                                                    </span>
+                                                                    {isSelected && (
+                                                                        <div className="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full p-0.5">
+                                                                            <Check className="h-2 w-2" />
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             )}

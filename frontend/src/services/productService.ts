@@ -142,7 +142,7 @@ export const productService = {
         if (error) throw error;
     },
 
-    async addStockFromBatch(productId: string, distribution: Record<string, Record<string, number>>) {
+    async addStockFromBatch(productId: string, distribution: Record<string, Record<string, number>>, referenceId?: string) {
         if (!distribution || Object.keys(distribution).length === 0) return;
 
         console.log('📦 addStockFromBatch called for product:', productId);
@@ -172,15 +172,47 @@ export const productService = {
 
         console.log('📋 Current talles before update:', currentTalles.map(t => ({ id: t.id, talla_codigo: t.talla_codigo, stock: t.stock })));
 
+        // Array para guardar los movimientos de stock
+        const movimientosStock: any[] = [];
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+
         // 3. Prepare updates
         const updates = currentTalles.map(t => {
             const addedQty = totalsPerTalle[t.id] || 0;
             if (addedQty > 0) {
                 const newStock = (t.stock || 0) + addedQty;
-                console.log(`  🔄 Updating talle ${t.talla_codigo}: ${t.stock || 0} + ${addedQty} = ${newStock}`);
+
+                // Procesar stock_por_color para este talle
+                const currentStockPorColor = typeof t.stock_por_color === 'object' && t.stock_por_color !== null
+                    ? { ...t.stock_por_color }
+                    : {};
+
+                Object.entries(distribution).forEach(([colorName, tallesDist]) => {
+                    if (tallesDist[t.id] && tallesDist[t.id] > 0) {
+                        const qty = tallesDist[t.id];
+                        currentStockPorColor[colorName] = (currentStockPorColor[colorName] || 0) + qty;
+
+                        // Preparar el movimiento para el historial
+                        movimientosStock.push({
+                            tipo_movimiento: 'entrada_produccion',
+                            producto_id: productId,
+                            talle_id: t.id,
+                            talle: t.talla_codigo,
+                            color: colorName,
+                            cantidad: qty,
+                            referencia_tipo: referenceId ? 'lote_produccion' : 'manual',
+                            referencia_id: referenceId || null,
+                            usuario_id: userId || null
+                        });
+                    }
+                });
+
+                console.log(`  🔄 Updating talle ${t.talla_codigo}: ${t.stock || 0} + ${addedQty} = ${newStock}, Colors:`, currentStockPorColor);
+
                 return {
                     ...t,
-                    stock: newStock
+                    stock: newStock,
+                    stock_por_color: currentStockPorColor
                 };
             }
             return null;
@@ -192,8 +224,19 @@ export const productService = {
         if (updates.length > 0) {
             await this.updateTalles(updates);
 
-            // 5. Update Total Stock in Product
+            // 5. Insertar movimientos en el historial
+            if (movimientosStock.length > 0) {
+                const { error: movError } = await supabase
+                    .from('movimientos_stock_productos')
+                    .insert(movimientosStock);
+                if (movError) {
+                    console.error('⚠️ Error insertando movimientos de stock:', movError);
+                } else {
+                    console.log('✅ Historial de movimientos registrado exitosamente.');
+                }
+            }
 
+            // 6. Update Total Stock in Product
             await this.syncProductTotalStock(productId);
         }
 

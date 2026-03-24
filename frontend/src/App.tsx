@@ -20,6 +20,8 @@ import { Checkout } from './pages/public/Checkout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Duenos } from './pages/admin/Duenos';
 import { Finanzas } from './pages/admin/Finanzas';
+import Cupones from './pages/admin/Cupones';
+import ConfiguracionSistema from './pages/admin/ConfiguracionSistema';
 
 function App() {
   const { session, loading, setLoading, setSession, setUser } = useAuthStore();
@@ -112,6 +114,8 @@ function App() {
             <Route path="duenos" element={<Duenos />} />
             <Route path="finanzas" element={<Finanzas />} />
             <Route path="equipo" element={<Equipo />} />
+            <Route path="cupones" element={<Cupones />} />
+            <Route path="configuracion" element={<ConfiguracionSistema />} />
           </Route>
         </Route>
 

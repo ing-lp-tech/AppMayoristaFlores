@@ -79,45 +79,106 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                                     <ShoppingBag className="h-3 w-3" /> Prendas por Unidad
                                                 </h3>
                                                 <ul role="list" className="divide-y divide-gray-100">
-                                                    {itemsMinorista.map((item) => (
-                                                        <li key={item.id} className="py-4 flex">
-                                                            <div className="flex-shrink-0 w-16 h-16 border border-gray-200 rounded-md overflow-hidden bg-gray-100">
-                                                                <img
-                                                                    src={item.producto.imagen_principal || 'https://via.placeholder.com/150'}
-                                                                    className="w-full h-full object-center object-cover"
-                                                                />
-                                                            </div>
+                                                    {Object.values(itemsMinorista.reduce((acc, item) => {
+                                                        if (!acc[item.producto.id]) {
+                                                            acc[item.producto.id] = { producto: item.producto, items: [] };
+                                                        }
+                                                        acc[item.producto.id].items.push(item);
+                                                        return acc;
+                                                    }, {} as Record<string, { producto: any, items: typeof itemsMinorista }>)).map((group) => {
+                                                        const colors = Array.from(new Set(group.items.map(i => i.color?.nombre || 'Sin Color')));
+                                                        const talles = Array.from(new Set(group.items.map(i => i.talle.talla_codigo))).sort();
+                                                        const totalProdPrice = group.items.reduce((sum, i) => sum + (i.precio_unitario * i.cantidad), 0);
+                                                        const totalProdQty = group.items.reduce((sum, i) => sum + i.cantidad, 0);
 
-                                                            <div className="ml-4 flex-1 flex flex-col">
-                                                                <div className="flex justify-between text-base font-medium text-gray-900">
-                                                                    <h4 className="text-sm font-bold">{item.producto.nombre}</h4>
-                                                                    <p className="text-sm">${(item.precio_unitario * item.cantidad).toLocaleString()}</p>
-                                                                </div>
-                                                                <p className="text-xs text-gray-500">Talle: {item.talle.talla_codigo}</p>
+                                                        const getItem = (c: string, t: string) => group.items.find(i => (i.color?.nombre || 'Sin Color') === c && i.talle.talla_codigo === t);
 
-                                                                <div className="flex-1 flex items-end justify-between text-sm mt-2">
-                                                                    <div className="flex items-center border border-gray-200 rounded-lg">
-                                                                        <button
-                                                                            onClick={() => updateMinoristaItem(item.id, item.cantidad - 1)}
-                                                                            className="p-1 hover:bg-gray-100"
-                                                                        >
-                                                                            <Minus className="h-3 w-3" />
-                                                                        </button>
-                                                                        <span className="px-2 font-medium w-6 text-center">{item.cantidad}</span>
-                                                                        <button
-                                                                            onClick={() => updateMinoristaItem(item.id, item.cantidad + 1)}
-                                                                            className="p-1 hover:bg-gray-100"
-                                                                        >
-                                                                            <Plus className="h-3 w-3" />
-                                                                        </button>
+                                                        return (
+                                                            <li key={group.producto.id} className="py-4 flex flex-col gap-3">
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className="flex-shrink-0 w-16 h-16 border border-gray-200 rounded-md overflow-hidden bg-gray-100">
+                                                                        <img
+                                                                            src={group.producto.imagen_principal || 'https://placehold.co/150x150/e2e8f0/64748b?text=Sin+Imagen'}
+                                                                            className="w-full h-full object-center object-cover"
+                                                                        />
                                                                     </div>
-                                                                    <button onClick={() => removeMinoristaItem(item.id)} className="text-red-400 hover:text-red-600">
+
+                                                                    <div className="flex-1 flex flex-col">
+                                                                        <div className="flex justify-between text-base font-medium text-gray-900">
+                                                                            <h4 className="text-sm font-bold">{group.producto.nombre}</h4>
+                                                                            <p className="text-sm text-gray-900 font-bold">${totalProdPrice.toLocaleString()}</p>
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-500 mt-1">{totalProdQty} unidades en total</p>
+                                                                    </div>
+                                                                    <button onClick={() => group.items.forEach(i => removeMinoristaItem(i.id))} className="text-red-400 hover:text-red-600 p-1 title='Vaciar artículo'">
                                                                         <Trash2 className="h-4 w-4" />
                                                                     </button>
                                                                 </div>
-                                                            </div>
-                                                        </li>
-                                                    ))}
+
+                                                                {/* Variations Summary in Matrix Form */}
+                                                                <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-2">
+                                                                    <table className="min-w-full divide-y divide-gray-200 text-xs">
+                                                                        <thead className="bg-gray-50">
+                                                                            <tr>
+                                                                                <th className="px-2 py-2 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                                                {talles.map(t => (
+                                                                                    <th key={t} className="px-1 py-2 text-center font-bold text-gray-700 min-w-[50px]">{t}</th>
+                                                                                ))}
+                                                                                <th className="px-2 py-2 text-right font-black text-gray-500 uppercase">Total</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-gray-200 bg-white">
+                                                                            {colors.map(colorName => {
+                                                                                const sampleItem = group.items.find(i => (i.color?.nombre || 'Sin Color') === colorName);
+                                                                                const hex = sampleItem?.color?.hex;
+                                                                                const rowTotal = talles.reduce((sum, t) => sum + (getItem(colorName, t)?.cantidad || 0), 0);
+                                                                                return (
+                                                                                    <tr key={colorName} className="hover:bg-gray-50/50">
+                                                                                        <td className="px-2 py-1.5 font-bold text-gray-900 break-words max-w-[90px]">
+                                                                                            <div className="flex items-center gap-1.5">
+                                                                                                {hex && <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                                                <span className="truncate" title={colorName}>{colorName}</span>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        {talles.map(t => {
+                                                                                            const currentItem = getItem(colorName, t);
+                                                                                            return (
+                                                                                                <td key={t} className="px-1 py-1 text-center">
+                                                                                                    {currentItem ? (
+                                                                                                        <div className="flex items-center justify-center border border-gray-200 rounded-lg bg-gray-50 overflow-hidden w-full max-w-[65px] mx-auto">
+                                                                                                            <button
+                                                                                                                onClick={() => {
+                                                                                                                    if (currentItem.cantidad <= 1) removeMinoristaItem(currentItem.id);
+                                                                                                                    else updateMinoristaItem(currentItem.id, currentItem.cantidad - 1);
+                                                                                                                }}
+                                                                                                                className="px-1.5 py-1 hover:bg-gray-200 text-gray-600 transition-colors"
+                                                                                                            >
+                                                                                                                <Minus className="h-3 w-3" />
+                                                                                                            </button>
+                                                                                                            <span className="font-bold flex-1 text-center text-[10px]">{currentItem.cantidad}</span>
+                                                                                                            <button
+                                                                                                                onClick={() => updateMinoristaItem(currentItem.id, currentItem.cantidad + 1)}
+                                                                                                                className="px-1.5 py-1 hover:bg-gray-200 text-gray-600 transition-colors"
+                                                                                                            >
+                                                                                                                <Plus className="h-3 w-3" />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    ) : (
+                                                                                                        <span className="text-gray-300">-</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                            )
+                                                                                        })}
+                                                                                        <td className="px-2 py-1.5 text-right font-black text-gray-700">{rowTotal}</td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </li>
+                                                        )
+                                                    })}
                                                 </ul>
                                             </div>
                                         )}
@@ -129,48 +190,78 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                                     <Package className="h-3 w-3" /> Pedidos Mayoristas
                                                 </h3>
                                                 <ul role="list" className="divide-y divide-gray-100">
-                                                    {itemsMayorista.map((item) => (
-                                                        <li key={item.id} className="py-4 flex flex-col gap-3">
-                                                            <div className="flex items-start gap-4">
-                                                                <div className="flex-shrink-0 w-16 h-16 border border-blue-100 rounded-md overflow-hidden bg-blue-50 flex items-center justify-center">
-                                                                    {item.producto.imagen_principal ? (
-                                                                        <img src={item.producto.imagen_principal} className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        <Package className="h-8 w-8 text-blue-200" />
-                                                                    )}
-                                                                </div>
+                                                    {itemsMayorista.map((item) => {
+                                                        const colors = Array.from(new Set((item.variaciones || []).map(v => v.color.nombre)));
+                                                        const talles = Array.from(new Set((item.variaciones || []).map(v => v.talle)));
 
-                                                                <div className="flex-1 flex flex-col">
-                                                                    <div className="flex justify-between text-base font-medium text-gray-900">
-                                                                        <h4 className="text-sm font-bold">{item.producto.nombre}</h4>
-                                                                        <p className="text-sm text-blue-600 font-bold">${(item.precio_total || 0).toLocaleString()}</p>
+                                                        const cellValue = (c: string, t: string) => {
+                                                            const v = item.variaciones?.find(v => v.color.nombre === c && v.talle === t);
+                                                            return v ? v.cantidad : null;
+                                                        };
+
+                                                        return (
+                                                            <li key={item.id} className="py-4 flex flex-col gap-3">
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className="flex-shrink-0 w-16 h-16 border border-blue-100 rounded-md overflow-hidden bg-blue-50 flex items-center justify-center">
+                                                                        {item.producto.imagen_principal ? (
+                                                                            <img src={item.producto.imagen_principal} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <Package className="h-8 w-8 text-blue-200" />
+                                                                        )}
                                                                     </div>
-                                                                    <p className="text-xs text-gray-500 mt-1">{item.cantidad_total || 0} unidades en total</p>
+
+                                                                    <div className="flex-1 flex flex-col">
+                                                                        <div className="flex justify-between text-base font-medium text-gray-900">
+                                                                            <h4 className="text-sm font-bold">{item.producto.nombre}</h4>
+                                                                            <p className="text-sm text-blue-600 font-bold">${(item.precio_total || 0).toLocaleString()}</p>
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-500 mt-1">{item.cantidad_total || 0} unidades en total</p>
+                                                                    </div>
+
+                                                                    <button onClick={() => removeMayoristaItem(item.id)} className="text-red-400 hover:text-red-600 p-1">
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </button>
                                                                 </div>
 
-                                                                <button onClick={() => removeMayoristaItem(item.id)} className="text-red-400 hover:text-red-600 p-1">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </button>
-                                                            </div>
-
-                                                            {/* Variations Summary */}
-                                                            <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-2">
-                                                                {Array.from(new Set((item.variaciones || []).map(v => v.color.nombre))).map(colorName => {
-                                                                    const vars = (item.variaciones || []).filter(v => v.color.nombre === colorName);
-                                                                    return (
-                                                                        <div key={colorName} className="flex flex-wrap gap-2 items-center">
-                                                                            <span className="font-bold text-gray-700 min-w-[60px]">{colorName}:</span>
-                                                                            {vars.map((v, idx) => (
-                                                                                <span key={idx} className="bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">
-                                                                                    {v.talle} <span className="text-blue-600 font-bold">x{v.cantidad}</span>
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </li>
-                                                    ))}
+                                                                {/* Variations Summary in Matrix Form */}
+                                                                <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-2">
+                                                                    <table className="min-w-full divide-y divide-gray-200 text-xs">
+                                                                        <thead className="bg-gray-50">
+                                                                            <tr>
+                                                                                <th className="px-2 py-2 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                                                {talles.map(t => (
+                                                                                    <th key={t} className="px-2 py-2 text-center font-bold text-gray-700 min-w-[30px]">{t}</th>
+                                                                                ))}
+                                                                                <th className="px-2 py-2 text-right font-black text-gray-500 uppercase">Total</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-gray-200 bg-white">
+                                                                            {colors.map(colorName => {
+                                                                                const hex = item.variaciones?.find(v => v.color.nombre === colorName)?.color.hex;
+                                                                                const rowTotal = talles.reduce((sum, t) => sum + (cellValue(colorName, t) || 0), 0);
+                                                                                return (
+                                                                                    <tr key={colorName} className="hover:bg-gray-50/50">
+                                                                                        <td className="px-2 py-1.5 font-bold text-gray-900 break-words max-w-[100px]">
+                                                                                            <div className="flex items-center gap-1.5">
+                                                                                                {hex && <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                                                <span className="truncate" title={colorName}>{colorName}</span>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        {talles.map(t => (
+                                                                                            <td key={t} className="px-2 py-1.5 text-center text-gray-600 font-medium">
+                                                                                                {cellValue(colorName, t) || '-'}
+                                                                                            </td>
+                                                                                        ))}
+                                                                                        <td className="px-2 py-1.5 text-right font-black text-blue-600">{rowTotal}</td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </li>
+                                                        )
+                                                    })}
                                                 </ul>
                                             </div>
                                         )}

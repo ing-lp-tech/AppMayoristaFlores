@@ -201,43 +201,163 @@ export const PedidoDetailModal = ({ pedido, onClose, onUpdate }: PedidoDetailMod
                             <Package className="h-5 w-5 text-blue-600" />
                             Items del Pedido ({itemsToShow.length})
                         </h3>
-                        <div className="space-y-3 max-h-60 overflow-y-auto">
+                        <div className="space-y-3 max-h-72 overflow-y-auto">
                             {pedido.tipo_cliente_pedido === 'mayorista' ? (
-                                pedido.items_mayorista?.map((item, idx) => (
-                                    <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="font-bold text-gray-900 text-sm">
-                                                Producto ID: {item.producto_id.substring(0, 8)}...
-                                            </span>
-                                            <span className="text-blue-600 font-bold text-sm">
-                                                ${item.subtotal.toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs text-gray-600 space-y-1">
-                                            <p>Curva: {item.nombre_curva}</p>
-                                            <p>Cantidad de curvas: {item.cantidad_curvas}</p>
-                                            <p>Talles: {item.talles_incluidos?.join(', ') || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                pedido.items_minorista?.map((item, idx) => (
-                                    <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <span className="font-bold text-gray-900 text-sm block">
-                                                    Producto ID: {item.producto_id.substring(0, 8)}...
-                                                </span>
-                                                <span className="text-xs text-gray-600">
-                                                    Talle: {item.talle_id} • Cantidad: {item.cantidad}
+                                pedido.items_mayorista?.map((item, idx) => {
+                                    let variacionesP = item.variaciones;
+                                    try {
+                                        if (typeof variacionesP === "string") variacionesP = JSON.parse(variacionesP);
+                                    } catch (e) { }
+
+                                    const hasVariaciones = variacionesP && Array.isArray(variacionesP) && variacionesP.length > 0;
+                                    const colors = hasVariaciones ? Array.from(new Set((variacionesP || []).map((v: any) => v.color?.nombre || 'Sin Color'))) : [];
+                                    const talles = hasVariaciones ? Array.from(new Set((variacionesP || []).map((v: any) => v.talle))) : [];
+                                    const cellValue = (c: string, t: string) => {
+                                        const v = variacionesP?.find((v: any) => (v.color?.nombre || 'Sin Color') === c && v.talle === t);
+                                        return v ? (v.cantidad || v.cantidad_por_curva) : null;
+                                    };
+
+                                    return (
+                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <span className="font-bold text-gray-900 text-sm block">
+                                                        {(item as any).producto?.nombre || `Producto ${item.producto_id.substring(0, 8)}…`}
+                                                    </span>
+                                                    {(item as any).producto?.codigo && (
+                                                        <span className="text-[10px] text-gray-400 font-mono">
+                                                            #{(item as any).producto.codigo}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-blue-600 font-bold text-sm">
+                                                    ${item.subtotal.toLocaleString()}
                                                 </span>
                                             </div>
-                                            <span className="text-blue-600 font-bold text-sm">
-                                                ${item.subtotal.toLocaleString()}
-                                            </span>
+                                            <div className="text-xs text-gray-600 space-y-1 mt-2 pt-2 border-t border-gray-100">
+                                                {hasVariaciones ? (
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-2">
+                                                        <table className="min-w-full divide-y divide-gray-200 text-[10px]">
+                                                            <thead className="bg-gray-50">
+                                                                <tr>
+                                                                    <th className="px-2 py-1.5 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                                    {talles.map((t: any) => (
+                                                                        <th key={t} className="px-1 py-1.5 text-center font-bold text-gray-700">{t}</th>
+                                                                    ))}
+                                                                    <th className="px-2 py-1.5 text-right font-black text-gray-500 uppercase">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-200 bg-white">
+                                                                {colors.map((colorName: any) => {
+                                                                    const hex = item.variaciones?.find((v: any) => (v.color?.nombre || 'Sin Color') === colorName)?.color?.hex;
+                                                                    const rowTotal = talles.reduce((sum: number, t: any) => sum + (cellValue(colorName, t) || 0), 0);
+                                                                    return (
+                                                                        <tr key={colorName}>
+                                                                            <td className="px-2 py-1.5 font-bold text-gray-900">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {hex && <div className="w-2 h-2 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                                    <span className="truncate max-w-[80px]" title={colorName}>{colorName}</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            {talles.map((t: any) => (
+                                                                                <td key={t} className="px-1 py-1.5 text-center text-gray-600 font-medium">{cellValue(colorName, t) || '-'}</td>
+                                                                            ))}
+                                                                            <td className="px-2 py-1.5 text-right font-black text-blue-600">{rowTotal}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="font-semibold text-gray-700">Talles:</span>
+                                                        {item.talles_incluidos?.map((t: string, i: number) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold text-[10px] uppercase">
+                                                                {t}
+                                                            </span>
+                                                        )) || <span className="text-gray-400">N/A</span>}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-4 mt-2">
+                                                    <span><span className="font-semibold">Curva:</span> {item.nombre_curva}</span>
+                                                    <span><span className="font-semibold">Total prendas:</span> {item.cantidad_curvas} u.</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
+                            ) : (
+                                Object.values(
+                                    (pedido.items_minorista || []).reduce((acc: any, item: any) => {
+                                        if (!acc[item.producto_id]) {
+                                            acc[item.producto_id] = { producto: item.producto, items: [], producto_id: item.producto_id, subtotal: 0 };
+                                        }
+                                        acc[item.producto_id].items.push(item);
+                                        acc[item.producto_id].subtotal += (item.subtotal || 0);
+                                        return acc;
+                                    }, {})
+                                ).map((group: any, idx) => {
+                                    const colors = Array.from(new Set(group.items.map((i: any) => i.color_nombre || 'Sin Color')));
+                                    // Handle talla mapping flexibly (talla_codigo or talla_nombre)
+                                    const getTalleName = (i: any) => i.talla?.talla_codigo || i.talla?.talla_nombre || i.talle_id.substring(0, 6) + '…';
+                                    const talles = Array.from(new Set(group.items.map(getTalleName))).sort();
+                                    const getItem = (c: string, t: string) => group.items.find((i: any) => (i.color_nombre || 'Sin Color') === c && getTalleName(i) === t);
+
+                                    return (
+                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="font-bold text-gray-900 text-sm block">
+                                                        {(group as any).producto?.nombre || `Producto ${group.producto_id.substring(0, 8)}…`}
+                                                    </span>
+                                                    {(group as any).producto?.codigo && (
+                                                        <span className="text-[10px] text-gray-400 font-mono">
+                                                            #{(group as any).producto.codigo}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-blue-600 font-bold text-sm ml-3">
+                                                    ${group.subtotal.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-2">
+                                                <table className="min-w-full divide-y divide-gray-200 text-[10px]">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="px-2 py-1.5 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                            {talles.map((t: any) => (
+                                                                <th key={t} className="px-1 py-1.5 text-center font-bold text-gray-700">{t}</th>
+                                                            ))}
+                                                            <th className="px-2 py-1.5 text-right font-black text-gray-500 uppercase">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-200 bg-white">
+                                                        {colors.map((colorName: any) => {
+                                                            const sampleItem = group.items.find((i: any) => (i.color_nombre || 'Sin Color') === colorName);
+                                                            const hex = sampleItem?.color_hex;
+                                                            const rowTotal = talles.reduce((sum: number, t: any) => sum + (getItem(colorName, t)?.cantidad || 0), 0);
+                                                            return (
+                                                                <tr key={colorName}>
+                                                                    <td className="px-2 py-1.5 font-bold text-gray-900">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            {hex && <div className="w-2 h-2 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                            <span className="truncate max-w-[80px]" title={colorName}>{colorName}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    {talles.map((t: any) => (
+                                                                        <td key={t} className="px-1 py-1.5 text-center text-gray-600 font-medium">{getItem(colorName, t)?.cantidad || '-'}</td>
+                                                                    ))}
+                                                                    <td className="px-2 py-1.5 text-right font-black text-gray-700">{rowTotal}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </div>

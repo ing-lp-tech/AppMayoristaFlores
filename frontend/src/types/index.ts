@@ -19,6 +19,15 @@ export interface UsuarioInterno {
     tenant_id?: string;
 }
 
+export interface CuponDescuento {
+    id: string;
+    codigo: string;
+    descuento_porcentaje: number;
+    fecha_expiracion: string;
+    activo: boolean;
+    creado_en: string;
+}
+
 export interface Cliente {
     id: string;
     email?: string;
@@ -108,6 +117,7 @@ export interface ProductoTalla {
     stock: number;
     stock_minimo: number;
     disponible_publico: boolean;
+    stock_por_color?: Record<string, number>;
 }
 
 // ==========================================
@@ -163,6 +173,7 @@ export interface PedidoItemMayorista {
     cantidad_curvas: number;
     precio_curva: number;
     subtotal: number;
+    variaciones?: any[];
     // UI Helpers
     producto?: Producto;
 }
@@ -179,6 +190,8 @@ export interface Proveedor {
     contacto?: string;
     telefono?: string;
     email?: string;
+    direccion?: string;
+    observaciones?: string;
     saldo_actual: number;
     creado_en: string;
 }

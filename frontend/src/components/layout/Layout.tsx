@@ -17,7 +17,9 @@ import {
     Shield,
     ShoppingBag,
     UsersRound,
-    DollarSign
+    DollarSign,
+    Ticket,
+    Settings
 } from 'lucide-react';
 import type { UserRole } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -92,6 +94,18 @@ export const Layout = () => {
             to: '/admin/equipo',
             icon: Shield,
             label: 'Equipo',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/cupones',
+            icon: Ticket,
+            label: 'Cupones',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/configuracion',
+            icon: Settings,
+            label: 'Configuración',
             allowed: ['owner', 'admin']
         },
     ];

@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ShoppingBag, CreditCard, Truck, ChevronLeft, CheckCircle2,
-    Loader2, ShoppingCart, MessageCircle
+    Loader2, ShoppingCart, MessageCircle, Ticket, X
 } from 'lucide-react';
 import { useCartDualStore } from '../../store/cartDualStore';
 import { paymentService } from '../../services/paymentService';
 import { supabase } from '../../lib/supabase';
 import { getMPInstance } from '../../lib/mercadopago';
-
-// ─── Número de WhatsApp del negocio ──────────────────────────────────────────
-const WHATSAPP_NUMBER = '5491126879409';
+import type { CuponDescuento } from '../../types';
 
 // ─── Genera el mensaje para WhatsApp ─────────────────────────────────────────
 const buildWhatsAppMessage = (
@@ -87,10 +85,21 @@ export const Checkout = () => {
     const [mpPreferenceId, setMpPreferenceId] = useState<string | null>(null);
     const [mpBrickReady, setMpBrickReady] = useState(false);
 
+    // System Config
+    const [systemWhatsApp, setSystemWhatsApp] = useState('5491126879409');
+
     const isWholesale = mode === 'mayorista';
     const totals = getTotals();
     const subtotal = isWholesale ? totals.subtotalMayorista : totals.subtotalMinorista;
-    const finalTotal = totals.total;
+
+    // Coupon States
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<CuponDescuento | null>(null);
+    const [couponError, setCouponError] = useState('');
+    const [verifyingCoupon, setVerifyingCoupon] = useState(false);
+
+    const discountAmount = appliedCoupon ? subtotal * (appliedCoupon.descuento_porcentaje / 100) : 0;
+    const finalTotal = totals.total - discountAmount;
     const currentItems = isWholesale ? itemsMayorista : itemsMinorista;
 
     const [form, setForm] = useState({
@@ -108,6 +117,56 @@ export const Checkout = () => {
 
     const [paymentType, setPaymentType] = useState<'total' | 'sena'>('total');
     const [depositAmount, setDepositAmount] = useState<number>(0);
+
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) return;
+        setVerifyingCoupon(true);
+        setCouponError('');
+        try {
+            const now = new Date().toISOString();
+            const { data, error } = await supabase
+                .from('cupones_descuento')
+                .select('*')
+                .eq('codigo', couponCode.trim().toUpperCase())
+                .eq('activo', true)
+                .gte('fecha_expiracion', now)
+                .single();
+
+            if (error || !data) {
+                setCouponError('Cupón inválido o expirado.');
+                setAppliedCoupon(null);
+            } else {
+                setAppliedCoupon(data);
+                setCouponCode('');
+            }
+        } catch (err) {
+            setCouponError('Error al verificar el cupón.');
+        } finally {
+            setVerifyingCoupon(false);
+        }
+    };
+
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                const { data } = await supabase
+                    .from('configuracion_sistema')
+                    .select('whatsapp_pedidos')
+                    .limit(1);
+                if (data && data.length > 0 && data[0].whatsapp_pedidos) {
+                    setSystemWhatsApp(data[0].whatsapp_pedidos);
+                }
+            } catch (err) {
+                console.error("Error cargando configuración:", err);
+            }
+        };
+        loadConfig();
+    }, []);
+
+    const removeCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponError('');
+    };
 
     // ── Checkout Pro: montar Wallet Brick cuando tengamos preference_id ──────
     useEffect(() => {
@@ -185,7 +244,7 @@ export const Checkout = () => {
                         </button>
                         {isWholesale && (
                             <a
-                                href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                                href={`https://wa.me/${systemWhatsApp}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all hover:bg-green-600 flex items-center justify-center gap-2 shadow-lg shadow-green-100"
@@ -220,14 +279,16 @@ export const Checkout = () => {
 
             // ── 1. Crear pedido en Supabase ──────────────────────────────
             // Construir datos del pedido (solo campos que existen en la tabla)
+            const cuponNota = appliedCoupon ? `CUPÓN (${appliedCoupon.codigo}): -${appliedCoupon.descuento_porcentaje}% OFF` : '';
             const notaInterna = isWholesale
                 ? [
                     form.nota,
+                    cuponNota,
                     form.razonSocial ? `RS: ${form.razonSocial}` : '',
                     form.cuit ? `CUIT: ${form.cuit}` : '',
                     `Envío: ${form.tipoEnvio}`,
                 ].filter(Boolean).join(' | ')
-                : (form.nota || null);
+                : ([form.nota, cuponNota].filter(Boolean).join(' | ') || null);
 
             const pedidoData: Record<string, any> = {
                 codigo_pedido: codigoPedido,
@@ -270,6 +331,7 @@ export const Checkout = () => {
                     cantidad_curvas: item.cantidad_total,
                     precio_curva: item.precio_total,
                     subtotal: item.precio_total,
+                    variaciones: JSON.parse(JSON.stringify(item.variaciones)) // AQUI AGREGAMOS LAS VARIACIONES DEL SURTIDO PURIFICADAS
                 }));
                 const { error } = await supabase.from('pedido_items_mayorista').insert(mayoristaItems);
                 if (error) throw error;
@@ -282,6 +344,10 @@ export const Checkout = () => {
                     cantidad: item.cantidad,
                     precio_unitario: item.precio_unitario,
                     subtotal: item.precio_unitario * item.cantidad,
+                    ...(item.color ? {
+                        color_nombre: item.color.nombre,
+                        color_hex: item.color.hex,
+                    } : {}),
                 }));
                 const { error } = await supabase.from('pedido_items_minorista').insert(minoristaItems);
                 if (error) throw error;
@@ -294,7 +360,7 @@ export const Checkout = () => {
                 clearCart();
                 setOrderSuccess({ id: pedido.id, codigo: codigoPedido });
                 // Abre WhatsApp en nueva pestaña con el mensaje del pedido
-                window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
+                window.open(`https://wa.me/${systemWhatsApp}?text=${encodedMsg}`, '_blank');
                 return;
             }
 
@@ -498,59 +564,145 @@ export const Checkout = () => {
                                 <h3 className="text-xl font-black text-gray-900 mb-8 uppercase tracking-widest">Resumen de Compra</h3>
 
                                 <div className="space-y-6 mb-10 max-h-[400px] overflow-y-auto pr-2">
-                                    {currentItems.map((item: any, idx) => (
-                                        <div key={idx} className="flex gap-4 items-start">
-                                            <div className="w-16 h-20 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-100">
-                                                {item.producto.imagen_principal ? (
-                                                    <img src={item.producto.imagen_principal} className="w-full h-full object-cover" alt={item.producto.nombre} />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
-                                                        <ShoppingCart className="h-6 w-6" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="text-sm font-black text-gray-900 line-clamp-1">{item.producto.nombre}</h4>
-                                                {isWholesale ? (
-                                                    <div className="mt-1 space-y-0.5">
-                                                        <span className="text-[10px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded uppercase">
-                                                            Surtido {item.cantidad_total}u.
-                                                        </span>
-                                                        <div className="mt-1 space-y-0.5">
-                                                            {item.variaciones.slice(0, 4).map((v: any, i: number) => (
-                                                                <div key={i} className="flex items-center justify-between text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded">
-                                                                    <span className="flex items-center gap-1">
-                                                                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: v.color?.hex }} />
-                                                                        <b>{v.color?.nombre}</b>
-                                                                    </span>
-                                                                    <span>{v.cantidad}× <b>{v.talle}</b></span>
+                                    {isWholesale ? (
+                                        itemsMayorista.map((item: any, idx) => {
+                                            const colors = Array.from(new Set((item.variaciones || []).map((v: any) => v.color.nombre)));
+                                            const talles = Array.from(new Set((item.variaciones || []).map((v: any) => v.talle)));
+                                            const cellValue = (c: string, t: string) => {
+                                                const v = item.variaciones?.find((v: any) => v.color.nombre === c && v.talle === t);
+                                                return v ? v.cantidad : null;
+                                            };
+                                            return (
+                                                <div key={idx} className="flex flex-col gap-3">
+                                                    <div className="flex gap-4 items-start">
+                                                        <div className="w-16 h-20 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-100">
+                                                            {item.producto.imagen_principal ? (
+                                                                <img src={item.producto.imagen_principal} className="w-full h-full object-cover" alt={item.producto.nombre} />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
+                                                                    <ShoppingCart className="h-6 w-6" />
                                                                 </div>
-                                                            ))}
-                                                            {item.variaciones.length > 4 && (
-                                                                <span className="text-[9px] text-gray-400 pl-1">+{item.variaciones.length - 4} más…</span>
                                                             )}
                                                         </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between">
+                                                                <h4 className="text-sm font-black text-gray-900 line-clamp-1">{item.producto.nombre}</h4>
+                                                                <span className="text-sm font-black text-blue-600 shrink-0">${item.precio_total.toLocaleString('es-AR')}</span>
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                <span className="text-[10px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded uppercase">
+                                                                    Surtido {item.cantidad_total}u.
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex gap-2 mt-1 flex-wrap">
-                                                        <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">
-                                                            TALLE {item.talle?.talla_codigo}
-                                                        </span>
-                                                        {item.color && (
-                                                            <span className="text-[10px] font-black text-gray-700 bg-gray-50 px-2 py-0.5 rounded flex items-center gap-1">
-                                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color?.hex }} />
-                                                                {item.color?.nombre}
-                                                            </span>
-                                                        )}
-                                                        <span className="text-[10px] text-gray-400">×{item.cantidad}</span>
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-1">
+                                                        <table className="min-w-full divide-y divide-gray-200 text-[10px]">
+                                                            <thead className="bg-gray-50">
+                                                                <tr>
+                                                                    <th className="px-2 py-1.5 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                                    {talles.map((t: any) => (
+                                                                        <th key={t} className="px-1 py-1.5 text-center font-bold text-gray-700">{t}</th>
+                                                                    ))}
+                                                                    <th className="px-2 py-1.5 text-right font-black text-gray-500 uppercase">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-200 bg-white">
+                                                                {colors.map((colorName: any) => {
+                                                                    const hex = item.variaciones?.find((v: any) => v.color.nombre === colorName)?.color.hex;
+                                                                    const rowTotal = talles.reduce((sum: number, t: any) => sum + (cellValue(colorName, t) || 0), 0);
+                                                                    return (
+                                                                        <tr key={colorName}>
+                                                                            <td className="px-2 py-1.5 font-bold text-gray-900">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {hex && <div className="w-2 h-2 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                                    <span className="truncate max-w-[80px]" title={colorName}>{colorName}</span>
+                                                                                    বিজনেস</div>
+                                                                            </td>
+                                                                            {talles.map((t: any) => (
+                                                                                <td key={t} className="px-1 py-1.5 text-center text-gray-600 font-medium">{cellValue(colorName, t) || '-'}</td>
+                                                                            ))}
+                                                                            <td className="px-2 py-1.5 text-right font-black text-blue-600">{rowTotal}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="text-sm font-black text-gray-900 shrink-0">
-                                                ${(isWholesale ? item.precio_total : (item.precio_unitario * item.cantidad)).toLocaleString('es-AR')}
-                                            </div>
-                                        </div>
-                                    ))}
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        Object.values(itemsMinorista.reduce((acc: any, item: any) => {
+                                            if (!acc[item.producto.id]) { acc[item.producto.id] = { producto: item.producto, items: [] }; }
+                                            acc[item.producto.id].items.push(item);
+                                            return acc;
+                                        }, {})).map((group: any, idx: number) => {
+                                            const colors = Array.from(new Set(group.items.map((i: any) => i.color?.nombre || 'Sin Color')));
+                                            const talles = Array.from(new Set(group.items.map((i: any) => i.talle.talla_codigo))).sort();
+                                            const totalProdPrice = group.items.reduce((sum: number, i: any) => sum + (i.precio_unitario * i.cantidad), 0);
+                                            const totalProdQty = group.items.reduce((sum: number, i: any) => sum + i.cantidad, 0);
+                                            const getItem = (c: string, t: string) => group.items.find((i: any) => (i.color?.nombre || 'Sin Color') === c && i.talle.talla_codigo === t);
+                                            return (
+                                                <div key={idx} className="flex flex-col gap-3">
+                                                    <div className="flex gap-4 items-start">
+                                                        <div className="w-16 h-20 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-100">
+                                                            {group.producto.imagen_principal ? (
+                                                                <img src={group.producto.imagen_principal} className="w-full h-full object-cover" alt={group.producto.nombre} />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
+                                                                    <ShoppingCart className="h-6 w-6" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between">
+                                                                <h4 className="text-sm font-black text-gray-900 line-clamp-1">{group.producto.nombre}</h4>
+                                                                <span className="text-sm font-black text-gray-900 shrink-0">${totalProdPrice.toLocaleString('es-AR')}</span>
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                <span className="text-[10px] text-gray-500 mt-1">{totalProdQty} unidades en total</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm mt-1">
+                                                        <table className="min-w-full divide-y divide-gray-200 text-[10px]">
+                                                            <thead className="bg-gray-50">
+                                                                <tr>
+                                                                    <th className="px-2 py-1.5 text-left font-black text-gray-500 uppercase">Color \\ Talle</th>
+                                                                    {talles.map((t: any) => (
+                                                                        <th key={t} className="px-1 py-1.5 text-center font-bold text-gray-700">{t}</th>
+                                                                    ))}
+                                                                    <th className="px-2 py-1.5 text-right font-black text-gray-500 uppercase">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-200 bg-white">
+                                                                {colors.map((colorName: any) => {
+                                                                    const sampleItem = group.items.find((i: any) => (i.color?.nombre || 'Sin Color') === colorName);
+                                                                    const hex = sampleItem?.color?.hex;
+                                                                    const rowTotal = talles.reduce((sum: number, t: any) => sum + (getItem(colorName, t)?.cantidad || 0), 0);
+                                                                    return (
+                                                                        <tr key={colorName}>
+                                                                            <td className="px-2 py-1.5 font-bold text-gray-900">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {hex && <div className="w-2 h-2 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: hex }}></div>}
+                                                                                    <span className="truncate max-w-[80px]" title={colorName}>{colorName}</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            {talles.map((t: any) => (
+                                                                                <td key={t} className="px-1 py-1.5 text-center text-gray-600 font-medium">{getItem(colorName, t)?.cantidad || '-'}</td>
+                                                                            ))}
+                                                                            <td className="px-2 py-1.5 text-right font-black text-gray-700">{rowTotal}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
                                 </div>
 
                                 <div className="space-y-4 pt-8 border-t border-gray-100">
@@ -562,6 +714,49 @@ export const Checkout = () => {
                                         <span>Envío</span>
                                         <span className="text-green-500 uppercase text-xs tracking-widest">A convenir</span>
                                     </div>
+
+                                    {/* Cupón UI */}
+                                    <div className="flex flex-col gap-2 mt-4 pb-4 border-b border-gray-100">
+                                        {!appliedCoupon ? (
+                                            <>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Código de descuento"
+                                                        value={couponCode}
+                                                        onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                                                        className="w-full uppercase rounded-xl border border-gray-200 py-2 px-3 font-bold focus:ring-2 focus:ring-blue-500 text-sm"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleApplyCoupon}
+                                                        disabled={verifyingCoupon || !couponCode.trim()}
+                                                        className="bg-gray-900 text-white px-4 rounded-xl font-bold text-sm tracking-wide disabled:opacity-50"
+                                                    >
+                                                        {verifyingCoupon ? 'Verificando...' : 'Aplicar'}
+                                                    </button>
+                                                </div>
+                                                {couponError && <span className="text-red-500 text-xs font-bold">{couponError}</span>}
+                                            </>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex justify-between text-red-500 font-bold">
+                                                    <span>Descuento ({appliedCoupon.descuento_porcentaje}%)</span>
+                                                    <span>-${discountAmount.toLocaleString('es-AR')}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between bg-green-50 border border-green-200 p-2 rounded-xl">
+                                                    <div className="flex items-center gap-2 text-green-700">
+                                                        <Ticket className="h-4 w-4" />
+                                                        <span className="font-bold text-xs uppercase">Cupón: {appliedCoupon.codigo} aplicado</span>
+                                                    </div>
+                                                    <button type="button" onClick={removeCoupon} className="text-gray-400 hover:text-red-500 border bg-white rounded-md p-1">
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="flex justify-between pt-6">
                                         <span className="text-lg font-black text-gray-900">Total</span>
                                         <div className="text-right">

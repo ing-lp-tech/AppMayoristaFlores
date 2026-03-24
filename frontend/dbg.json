@@ -1,0 +1,111 @@
+[
+  {
+    "id": "d7057f0f-f94e-453a-b7a8-2e629c775285",
+    "codigo": "D001",
+    "nombre": "Saquito Cardigan",
+    "descripcion_publica": "Saquito cardigan de darlon talle 3,4,5 y 6",
+    "descripcion_interna": null,
+    "categoria_id": "22222222-2222-2222-2222-222222222222",
+    "tipo_prenda": null,
+    "genero": null,
+    "tela_principal": null,
+    "color_base": null,
+    "composicion": null,
+    "cuidados": null,
+    "imagenes": [
+      "https://xmyuztkbevcsbcpxlyhf.supabase.co/storage/v1/object/public/product-photos/products/gb89eiek3l7.jpg",
+      "https://xmyuztkbevcsbcpxlyhf.supabase.co/storage/v1/object/public/product-photos/products/14cee3xb6l2.jpg",
+      "https://xmyuztkbevcsbcpxlyhf.supabase.co/storage/v1/object/public/product-photos/products/fap4sgf7cn4.jpg"
+    ],
+    "imagen_principal": "https://xmyuztkbevcsbcpxlyhf.supabase.co/storage/v1/object/public/product-photos/products/gb89eiek3l7.jpg",
+    "precio_minorista": 10000,
+    "precio_mayorista_curva": 7000,
+    "precio_costo_base": null,
+    "margen_minorista": 40,
+    "margen_mayorista": 25,
+    "curva_minima": true,
+    "talles_por_curva": null,
+    "descripcion_curva": null,
+    "stock_total": 168,
+    "stock_minimo": 10,
+    "visible_publico": true,
+    "destacado": false,
+    "disponible_minorista": true,
+    "disponible_mayorista": true,
+    "slug": "saquito-cardigan",
+    "creado_en": "2026-01-25T23:22:57.925495+00:00",
+    "actualizado_en": "2026-03-05T23:54:04.5+00:00",
+    "creado_por": null,
+    "proceso_produccion_id": null,
+    "galeria": [],
+    "tenant_id": "18a0793a-d00a-4622-8031-998b439a5e19",
+    "colores": [
+      {
+        "hex": "#1E3A8A",
+        "nombre": "Marino"
+      },
+      {
+        "hex": "#FAEBD7",
+        "nombre": "Crema melange"
+      },
+      {
+        "hex": null,
+        "nombre": "Vizon melange"
+      },
+      {
+        "hex": "#7C2D12",
+        "nombre": "Chocolate melange"
+      }
+    ],
+    "producto_talles": [
+      {
+        "id": "dfabee16-1cf6-4c1c-98e1-792ff0344571",
+        "orden": 1,
+        "stock": 42,
+        "producto_id": "d7057f0f-f94e-453a-b7a8-2e629c775285",
+        "stock_minimo": 5,
+        "talla_codigo": "3",
+        "talla_nombre": "3",
+        "incluido_curva": true,
+        "stock_por_color": {},
+        "disponible_publico": true
+      },
+      {
+        "id": "f86566be-9db9-48e7-a1a3-9129927c70d3",
+        "orden": 2,
+        "stock": 42,
+        "producto_id": "d7057f0f-f94e-453a-b7a8-2e629c775285",
+        "stock_minimo": 5,
+        "talla_codigo": "4",
+        "talla_nombre": "4",
+        "incluido_curva": true,
+        "stock_por_color": {},
+        "disponible_publico": true
+      },
+      {
+        "id": "dc0fc39c-0d63-42cc-b3c8-0fb732b695d9",
+        "orden": 3,
+        "stock": 42,
+        "producto_id": "d7057f0f-f94e-453a-b7a8-2e629c775285",
+        "stock_minimo": 5,
+        "talla_codigo": "5",
+        "talla_nombre": "5",
+        "incluido_curva": true,
+        "stock_por_color": {},
+        "disponible_publico": true
+      },
+      {
+        "id": "845b9883-8817-4fc7-b269-789e87c17b5d",
+        "orden": 4,
+        "stock": 42,
+        "producto_id": "d7057f0f-f94e-453a-b7a8-2e629c775285",
+        "stock_minimo": 5,
+        "talla_codigo": "6",
+        "talla_nombre": "6",
+        "incluido_curva": true,
+        "stock_por_color": {},
+        "disponible_publico": true
+      }
+    ]
+  }
+]
