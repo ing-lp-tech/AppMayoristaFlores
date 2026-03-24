@@ -353,10 +353,15 @@ export const Checkout = () => {
                 if (error) throw error;
             }
 
-            // ── 3a. MAYORISTA → WhatsApp ─────────────────────────────────
+            // ── 3a. MAYORISTA → WhatsApp + Email ────────────────────────
             if (isWholesale) {
                 const msg = buildWhatsAppMessage(codigoPedido, form, itemsMayorista, finalTotal);
                 const encodedMsg = encodeURIComponent(msg);
+
+                // Fire-and-forget email (no bloquea el checkout si falla)
+                supabase.functions.invoke('send-order-email', { body: { pedido_id: pedido.id } })
+                    .catch((err: any) => console.warn('Email warning:', err));
+
                 clearCart();
                 setOrderSuccess({ id: pedido.id, codigo: codigoPedido });
                 // Abre WhatsApp en nueva pestaña con el mensaje del pedido
@@ -389,6 +394,10 @@ export const Checkout = () => {
                     .update({ mercadopago_preference_id: preference.id })
                     .eq('id', pedido.id);
 
+                // Fire-and-forget email (no bloquea el checkout si falla)
+                supabase.functions.invoke('send-order-email', { body: { pedido_id: pedido.id } })
+                    .catch((err: any) => console.warn('Email warning:', err));
+
                 // Intentar inicializar Wallet Brick (Checkout Pro)
                 const mp = getMPInstance();
                 if (mp) {
@@ -401,6 +410,9 @@ export const Checkout = () => {
             } else if (preference?.init_point) {
                 window.location.href = preference.init_point;
             } else {
+                // Fire-and-forget email
+                supabase.functions.invoke('send-order-email', { body: { pedido_id: pedido.id } })
+                    .catch((err: any) => console.warn('Email warning:', err));
                 clearCart();
                 setOrderSuccess({ id: pedido.id, codigo: codigoPedido });
             }

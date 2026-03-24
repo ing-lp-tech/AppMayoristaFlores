@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Package, Save, X, AlertCircle, Upload, Check, Loader2, Image as ImageIcon, ShoppingBag, Copy } from 'lucide-react';
 import { productService, categoryService } from '../../services/productService';
+import { supabase } from '../../lib/supabase';
 import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 import type { Producto, ProductoTalla, Categoria } from '../../types';
 import { getColorName } from '../../utils/colorUtils';
@@ -95,7 +96,7 @@ export const AdminProducts = () => {
         if (!file) return;
 
         if ((formData.imagenes?.length || 0) >= 3) {
-            alert('Máximo 3 imágenes por producto');
+            alert('MÃ¡ximo 3 imÃ¡genes por producto');
             return;
         }
 
@@ -135,7 +136,7 @@ export const AdminProducts = () => {
         e.preventDefault();
 
         if (!formData.categoria_id) {
-            alert('Por favor seleccione una categoría');
+            alert('Por favor seleccione una categorÃ­a');
             return;
         }
 
@@ -155,7 +156,7 @@ export const AdminProducts = () => {
                 }
 
                 if (!unique) {
-                    throw new Error('No se pudo generar un SKU único automáticamente. Intente nuevamente.');
+                    throw new Error('No se pudo generar un SKU Ãºnico automÃ¡ticamente. Intente nuevamente.');
                 }
             }
 
@@ -174,15 +175,13 @@ export const AdminProducts = () => {
                 // 2. Update Product
                 await productService.updateProduct(formData.id, cleanProductData);
 
-                // 3. Update Talles — IMPORTANTE: preservar stock y stock_por_color de la DB.
-                // tallesForm viene de handleEdit que cargó los datos reales de la DB, por lo
-                // que t.stock y t.stock_por_color contienen los valores correctos. Solo se
-                // permite modificar config (talla_codigo, talla_nombre, orden, etc.) y el
-                // stock manual cuando NO hay colores definidos.
-                const tallesToUpdate = (tallesForm as any[]).map(t => {
+                // 3. Update Talles â€” separar nuevos (sin id) de existentes (con id)
+                const existingTalles: any[] = [];
+                const newTalles: any[] = [];
+
+                (tallesForm as any[]).forEach(t => {
                     const hasColors = formData.colores && formData.colores.length > 0;
-                    return {
-                        id: t.id,
+                    const talleData = {
                         producto_id: formData.id,
                         talla_codigo: t.talla_codigo,
                         talla_nombre: t.talla_nombre,
@@ -190,20 +189,39 @@ export const AdminProducts = () => {
                         incluido_curva: t.incluido_curva,
                         stock_minimo: t.stock_minimo,
                         disponible_publico: t.disponible_publico,
-                        // Si hay colores, el stock viene de stock_por_color; si no, del input manual
                         stock: hasColors
                             ? (t.stock_por_color ? Object.values(t.stock_por_color).reduce((s: number, v: any) => s + (Number(v) || 0), 0) : (t.stock || 0))
                             : (t.stock || 0),
-                        // Preservar el stock por color existente (puede haber sido seteado por lotes)
                         stock_por_color: t.stock_por_color || {}
                     };
-                });
-                await productService.updateTalles(tallesToUpdate);
 
-                alert('Producto y stock actualizados con éxito');
+                    if (t.id) {
+                        // Talle existente: incluir id para el upsert
+                        existingTalles.push({ id: t.id, ...talleData });
+                    } else {
+                        // Talle nuevo: NO incluir id, la DB lo genera con gen_random_uuid()
+                        newTalles.push(talleData);
+                    }
+                });
+
+                // Upsert talles existentes
+                if (existingTalles.length > 0) {
+                    await productService.updateTalles(existingTalles);
+                }
+
+                // Insert talles nuevos
+                if (newTalles.length > 0) {
+                    const { error: insertError } = await supabase
+                        .from('producto_talles')
+                        .insert(newTalles);
+                    if (insertError) throw insertError;
+                }
+
+
+                alert('Producto y stock actualizados con Ã©xito');
             } else {
                 await productService.createProduct(productData, tallesForm);
-                alert(`Producto creado con éxito. SKU Generado: ${finalSku}`);
+                alert(`Producto creado con Ã©xito. SKU Generado: ${finalSku}`);
             }
 
             setIsModalOpen(false);
@@ -230,7 +248,7 @@ export const AdminProducts = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('¿Estás seguro de que deseas eliminar este producto?')) return;
+        if (!window.confirm('Â¿EstÃ¡s seguro de que deseas eliminar este producto?')) return;
 
         try {
             await productService.deleteProduct(id);
@@ -239,7 +257,7 @@ export const AdminProducts = () => {
             console.error('Error deleting:', error);
 
             if (error.code === '23503') {
-                alert('No se puede eliminar este producto porque tiene Lotes de Producción asociados.\n\nPara mantener el historial, te recomendamos "ocultarlo" (quitar disponibilidad) en lugar de eliminarlo.');
+                alert('No se puede eliminar este producto porque tiene Lotes de ProducciÃ³n asociados.\n\nPara mantener el historial, te recomendamos "ocultarlo" (quitar disponibilidad) en lugar de eliminarlo.');
             } else {
                 alert('Error al eliminar producto: ' + error.message);
             }
@@ -247,12 +265,12 @@ export const AdminProducts = () => {
     };
 
     // ==========================================
-    // NUEVA FUNCIÓN: DUPLICAR PRODUCTO
+    // NUEVA FUNCIÃ“N: DUPLICAR PRODUCTO
     // ==========================================
     const handleDuplicate = async (product: Producto) => {
-        if (!window.confirm(`¿Quieres crear una copia de "${product.nombre}"?`)) return;
+        if (!window.confirm(`Â¿Quieres crear una copia de "${product.nombre}"?`)) return;
 
-        // Mostrar estado de carga (opcional, podrías usar un toast)
+        // Mostrar estado de carga (opcional, podrÃ­as usar un toast)
 
         // const originalText = document.getElementById(`dup-btn-${product.id}`)?.innerText;
 
@@ -273,7 +291,7 @@ export const AdminProducts = () => {
             const data = await response.json();
 
             if (data.success) {
-                alert("¡Producto clonado con éxito!");
+                alert("Â¡Producto clonado con Ã©xito!");
                 loadInitialData(); // Recargamos la lista para que aparezca la copia
             } else {
                 alert("Error: " + (data.error || "No se pudo duplicar"));
@@ -281,7 +299,7 @@ export const AdminProducts = () => {
 
         } catch (error) {
             console.error("Error duplicando:", error);
-            alert("Error de conexión con el backend");
+            alert("Error de conexiÃ³n con el backend");
         }
     };
 
@@ -308,19 +326,26 @@ export const AdminProducts = () => {
         setTallesForm(newTalles);
     };
 
-    const addTallaField = () => {
-        setTallesForm([...tallesForm, {
+    const addTallaField = (insertAt?: number) => {
+        const newTalle = {
             talla_codigo: '',
             talla_nombre: '',
-            orden: tallesForm.length + 1,
+            orden: 0,
             incluido_curva: true,
             stock: 0,
             stock_minimo: 5,
             disponible_publico: true
-        }]);
+        };
+        const idx = insertAt !== undefined ? insertAt : tallesForm.length;
+        const updated = [
+            ...tallesForm.slice(0, idx),
+            newTalle,
+            ...tallesForm.slice(idx)
+        ].map((t, i) => ({ ...t, orden: i + 1 }));
+        setTallesForm(updated);
     };
 
-    // Nueva función para togglear visibilidad
+    // Nueva funciÃ³n para togglear visibilidad
     const handleToggleVisibility = async (product: Producto & { producto_talles: ProductoTalla[] }) => {
         const newValue = !product.visible_publico;
 
@@ -344,8 +369,8 @@ export const AdminProducts = () => {
         <div className="p-6 max-w-7xl mx-auto pb-20">
             <div className="flex justify-between items-center mb-10">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Gestión de Productos</h1>
-                    <p className="text-gray-500 mt-1 font-medium">Control dual de catálogo, precios y stock por talle</p>
+                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">GestiÃ³n de Productos</h1>
+                    <p className="text-gray-500 mt-1 font-medium">Control dual de catÃ¡logo, precios y stock por talle</p>
                 </div>
                 <button
                     onClick={handleOpenModal}
@@ -359,7 +384,7 @@ export const AdminProducts = () => {
             {loading ? (
                 <div className="h-64 flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
                     <Loader2 className="h-10 w-10 text-blue-600 animate-spin mb-4" />
-                    <p className="text-gray-500 font-bold">Sincronizando catálogo...</p>
+                    <p className="text-gray-500 font-bold">Sincronizando catÃ¡logo...</p>
                 </div>
             ) : (
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
@@ -455,7 +480,7 @@ export const AdminProducts = () => {
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
-                                                {/* BOTÓN DUPLICAR (Agregado) */}
+                                                {/* BOTÃ“N DUPLICAR (Agregado) */}
                                                 <button
                                                     id={`dup-btn-${product.id}`}
                                                     onClick={() => handleDuplicate(product)}
@@ -474,7 +499,7 @@ export const AdminProducts = () => {
                 </div>
             )}
 
-            {/* Modal de Creación/Edición */}
+            {/* Modal de CreaciÃ³n/EdiciÃ³n */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
@@ -567,7 +592,7 @@ export const AdminProducts = () => {
                                                 )}
                                             </div>
                                             <p className="mt-3 text-[10px] text-gray-400 font-medium ml-1">
-                                                La primera imagen será la portada del producto. Sube hasta 3 fotos.
+                                                La primera imagen serÃ¡ la portada del producto. Sube hasta 3 fotos.
                                             </p>
                                         </div>
 
@@ -585,39 +610,39 @@ export const AdminProducts = () => {
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Código SKU interno</label>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">CÃ³digo SKU interno</label>
                                                 <input
                                                     type="text"
                                                     className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-mono font-bold"
-                                                    placeholder="Dejar vacío para autogenerar"
+                                                    placeholder="Dejar vacÃ­o para autogenerar"
                                                     value={formData.codigo}
                                                     onChange={e => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
                                                 />
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Categoría</label>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">CategorÃ­a</label>
                                                 <select
                                                     className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-bold"
                                                     value={formData.categoria_id}
                                                     onChange={e => setFormData({ ...formData, categoria_id: e.target.value })}
                                                 >
-                                                    <option value="">Seleccionar Categoría</option>
+                                                    <option value="">Seleccionar CategorÃ­a</option>
                                                     {categories.map(c => (
                                                         <option key={c.id} value={c.id}>{c.nombre}</option>
                                                     ))}
                                                 </select>
                                                 {categories.length === 0 && (
-                                                    <p className="text-xs text-red-500 mt-1">No se cargaron categorías</p>
+                                                    <p className="text-xs text-red-500 mt-1">No se cargaron categorÃ­as</p>
                                                 )}
                                             </div>
 
 
                                             <div className="sm:col-span-2">
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Descripción Pública</label>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">DescripciÃ³n PÃºblica</label>
                                                 <textarea
                                                     className="w-full rounded-2xl border-gray-200 bg-gray-50/50 py-3.5 focus:bg-white focus:ring-blue-600 focus:border-blue-600 font-medium"
-                                                    placeholder="Descripción detallada del producto para la tienda..."
+                                                    placeholder="DescripciÃ³n detallada del producto para la tienda..."
                                                     rows={3}
                                                     value={formData.descripcion_publica}
                                                     onChange={e => setFormData({ ...formData, descripcion_publica: e.target.value })}
@@ -698,7 +723,7 @@ export const AdminProducts = () => {
                                             <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Matriz de Talles y Stock</h4>
                                             <button
                                                 type="button"
-                                                onClick={addTallaField}
+                                                onClick={() => addTallaField()}
                                                 className="text-xs font-black text-blue-600 hover:text-blue-800 flex items-center gap-1"
                                             >
                                                 <Plus className="h-4 w-4" /> AGREGAR TALLE
@@ -707,18 +732,27 @@ export const AdminProducts = () => {
 
                                         <div className="grid grid-cols-1 gap-4">
                                             <div className="grid grid-cols-6 gap-4 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-[-1rem]">
-                                                <div className="col-span-1">Código</div>
+                                                <div className="col-span-1">CÃ³digo</div>
                                                 <div className="col-span-1">Etiqueta</div>
                                                 <div className="col-span-1">Stock Actual</div>
-                                                <div className="col-span-1">Stock Mín.</div>
+                                                <div className="col-span-1">Stock MÃ­n.</div>
                                                 <div className="col-span-1 text-center">En Curva?</div>
-                                                <div className="col-span-1 text-right">Acción</div>
+                                                <div className="col-span-1 text-right">AcciÃ³n</div>
                                             </div>
+                                            {/* BotÃ³n para insertar al principio */}
+                                            <button
+                                                type="button"
+                                                onClick={() => addTallaField(0)}
+                                                className="flex items-center justify-center gap-1 w-full py-1 text-[10px] font-black text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-dashed border-blue-200 hover:border-blue-400"
+                                            >
+                                                <Plus className="h-3 w-3" /> Insertar al inicio
+                                            </button>
 
                                             {tallesForm.map((t, idx) => {
                                                 const hasColors = formData.colores && formData.colores.length > 0;
                                                 return (
-                                                    <div key={idx} className="flex flex-col gap-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-100 transition-all">
+                                                    <React.Fragment key={idx}>
+                                                    <div className="flex flex-col gap-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-100 transition-all">
                                                         <div className="grid grid-cols-6 gap-4 items-center">
                                                             <input
                                                                 type="text"
@@ -784,6 +818,15 @@ export const AdminProducts = () => {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    {/* BotÃ³n insertar debajo de esta fila */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => addTallaField(idx + 1)}
+                                                        className="flex items-center justify-center gap-1 w-full py-1 text-[10px] font-black text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-dashed border-blue-200 hover:border-blue-400"
+                                                    >
+                                                        <Plus className="h-3 w-3" /> Insertar debajo
+                                                    </button>
+                                                    </React.Fragment>
                                                 )
                                             })}
                                         </div>
@@ -865,7 +908,7 @@ export const AdminProducts = () => {
                                             <div>
                                                 <h5 className="font-black text-amber-900 text-sm uppercase">Advertencia de Stock</h5>
                                                 <p className="text-sm text-amber-700 font-medium">
-                                                    Si el producto es Mayorista, el sistema validará que haya stock de TODOS los talles de la curva antes de permitir la compra.
+                                                    Si el producto es Mayorista, el sistema validarÃ¡ que haya stock de TODOS los talles de la curva antes de permitir la compra.
                                                 </p>
                                             </div>
                                         </div>
@@ -955,7 +998,7 @@ export const AdminProducts = () => {
 
                                 {/* Visibility Toggle */}
                                 <div className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl">
-                                    <span className="font-bold text-gray-700">Visible al Público</span>
+                                    <span className="font-bold text-gray-700">Visible al PÃºblico</span>
                                     <button
                                         onClick={() => selectedProduct && handleToggleVisibility(selectedProduct)}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${selectedProduct.visible_publico ? 'bg-green-500' : 'bg-gray-200'}`}
@@ -1002,6 +1045,7 @@ export const AdminProducts = () => {
         </div >
     );
 };
+
 
 
 

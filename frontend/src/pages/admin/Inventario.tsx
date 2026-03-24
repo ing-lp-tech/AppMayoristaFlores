@@ -127,8 +127,9 @@ export const Inventario = () => {
         try {
             if (activeTab === 'telas') {
                 if (editingId) {
-                    // Update single logic — use exact values the user entered (do NOT override with initials)
-                    const { error } = await supabase.from('rollos_tela').update(newTela).eq('id', editingId);
+                    // Strip virtual/joined fields before updating (proveedor_nombre and proveedores come from join, not a real column)
+                    const { proveedor_nombre, proveedores, ...telaToSave } = newTela as any;
+                    const { error } = await supabase.from('rollos_tela').update(telaToSave).eq('id', editingId);
                     if (error) throw error;
                 } else {
                     // BATCH INSERT

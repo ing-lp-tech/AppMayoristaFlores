@@ -70,6 +70,8 @@ export const Ventas = () => {
                     *,
                     items_minorista:pedido_items_minorista(
                         *,
+                        color_nombre,
+                        color_hex,
                         producto:productos(nombre, codigo),
                         talla:producto_talles(talla_codigo, talla_nombre)
                     ),
