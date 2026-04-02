@@ -113,20 +113,52 @@ export const Home = () => {
         <div className="bg-white min-h-screen font-sans pb-20">
             {/* Promo Banner */}
             {activeCoupon && timeLeft && (
-                <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white py-2 px-4 text-center shadow-md relative z-40">
-                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-6">
-                        <div className="flex items-center gap-2 font-black text-sm md:text-base uppercase tracking-wider">
-                            <Ticket className="h-5 w-5 animate-pulse" />
-                            <span>¡Oferta Relámpago!</span>
+                <div className="sticky top-28 md:top-16 z-40 bg-gradient-to-r from-red-700 via-rose-600 to-pink-600 text-white shadow-xl shadow-red-900/40">
+                    <div className="max-w-7xl mx-auto px-4 py-4 md:py-5 flex flex-col items-center gap-3">
+
+                        {/* Top row: label + code */}
+                        <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
+                            <div className="flex items-center gap-1.5 font-black text-sm md:text-base uppercase tracking-widest">
+                                <Ticket className="h-5 w-5 animate-pulse" />
+                                <span>¡Oferta Relámpago!</span>
+                            </div>
+                            <span className="text-white/50 hidden md:inline">·</span>
+                            <p className="text-sm md:text-base font-semibold text-center">
+                                Usá{' '}
+                                <span className="font-black bg-white text-red-600 px-2.5 py-0.5 rounded-lg mx-0.5 shadow-md tracking-widest text-sm">
+                                    {activeCoupon.codigo}
+                                </span>
+                                {' '}y obtené{' '}
+                                <span className="font-black text-yellow-300 text-lg md:text-xl drop-shadow">
+                                    {activeCoupon.descuento_porcentaje}% OFF
+                                </span>
+                            </p>
                         </div>
-                        <p className="text-sm md:text-base font-medium">
-                            Usa el código <span className="font-black bg-white text-red-600 px-2 py-0.5 rounded ml-1 mr-1 shadow-sm">{activeCoupon.codigo}</span>
-                            para un <span className="font-black text-yellow-300 text-lg md:text-xl drop-shadow-md">{activeCoupon.descuento_porcentaje}% OFF</span>
-                        </p>
-                        <div className="flex items-center gap-1.5 font-mono font-bold text-lg bg-black/20 px-3 py-1 rounded-lg border border-white/10 shadow-inner">
-                            <Clock className="h-4 w-4" />
-                            <span>{String(timeLeft.h).padStart(2, '0')}:{String(timeLeft.m).padStart(2, '0')}:{String(timeLeft.s).padStart(2, '0')}</span>
+
+                        {/* Countdown — centro y grande */}
+                        <div className="flex items-center justify-center gap-1.5">
+                            <Clock className="h-6 w-6 text-yellow-300 animate-pulse shrink-0 mr-1" />
+                            {[
+                                { val: timeLeft.h, label: 'horas' },
+                                { val: timeLeft.m, label: 'min' },
+                                { val: timeLeft.s, label: 'seg' },
+                            ].map(({ val, label }, i) => (
+                                <div key={label} className="flex items-center gap-1.5">
+                                    {i > 0 && (
+                                        <span className="font-black text-3xl md:text-4xl text-yellow-300 leading-none -mt-2">:</span>
+                                    )}
+                                    <div className="flex flex-col items-center bg-black/40 border-2 border-yellow-400/60 rounded-xl px-3 md:px-4 py-1.5 shadow-[0_0_16px_rgba(250,204,21,0.3)] min-w-[3.5rem] md:min-w-[4.5rem]">
+                                        <span className="font-mono font-black text-3xl md:text-5xl leading-none tracking-tight text-white drop-shadow-lg">
+                                            {String(val).padStart(2, '0')}
+                                        </span>
+                                        <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-yellow-300/90 mt-1">
+                                            {label}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
+
                     </div>
                 </div>
             )}
