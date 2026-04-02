@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
-import { Truck, ShieldCheck, Clock, Loader2, Ticket } from 'lucide-react';
+import { Truck, ShieldCheck, Clock, Loader2, Ticket, ChevronUp, ChevronDown } from 'lucide-react';
 import { ProductCard } from '../../components/ecommerce/minorista/ProductCardMinorista/ProductCardMinorista';
 import { supabase } from '../../lib/supabase';
 import { productService } from '../../services/productService';
@@ -18,6 +18,7 @@ export const Home = () => {
     // Coupon logic
     const [activeCoupon, setActiveCoupon] = useState<CuponDescuento | null>(null);
     const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
+    const [bannerMinimized, setBannerMinimized] = useState(false);
 
     // Hero Images Data
     const heroSlides = [
@@ -113,53 +114,79 @@ export const Home = () => {
         <div className="bg-white min-h-screen font-sans pb-20">
             {/* Promo Banner */}
             {activeCoupon && timeLeft && (
-                <div className="sticky top-28 md:top-16 z-40 bg-gradient-to-r from-red-700 via-rose-600 to-pink-600 text-white shadow-xl shadow-red-900/40">
-                    <div className="max-w-7xl mx-auto px-4 py-4 md:py-5 flex flex-col items-center gap-3">
+                <div className="sticky top-28 md:top-16 z-40 bg-gradient-to-r from-red-700 via-rose-600 to-pink-600 text-white shadow-xl shadow-red-900/40 transition-all duration-300">
 
-                        {/* Top row: label + code */}
-                        <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
-                            <div className="flex items-center gap-1.5 font-black text-sm md:text-base uppercase tracking-widest">
-                                <Ticket className="h-5 w-5 animate-pulse" />
-                                <span>¡Oferta Relámpago!</span>
+                    {/* Minimized strip */}
+                    {bannerMinimized ? (
+                        <div className="flex items-center justify-between px-4 py-2">
+                            <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest">
+                                <Ticket className="h-4 w-4 animate-pulse" />
+                                <span>¡Oferta Relámpago! — {activeCoupon.descuento_porcentaje}% OFF</span>
                             </div>
-                            <span className="text-white/50 hidden md:inline">·</span>
-                            <p className="text-sm md:text-base font-semibold text-center">
-                                Usá{' '}
-                                <span className="font-black bg-white text-red-600 px-2.5 py-0.5 rounded-lg mx-0.5 shadow-md tracking-widest text-sm">
-                                    {activeCoupon.codigo}
-                                </span>
-                                {' '}y obtené{' '}
-                                <span className="font-black text-yellow-300 text-lg md:text-xl drop-shadow">
-                                    {activeCoupon.descuento_porcentaje}% OFF
-                                </span>
-                            </p>
+                            <button
+                                onClick={() => setBannerMinimized(false)}
+                                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full text-xs font-bold"
+                            >
+                                <ChevronDown className="h-3.5 w-3.5" /> Ver oferta
+                            </button>
                         </div>
+                    ) : (
+                        /* Expanded banner */
+                        <div className="px-4 py-4 md:py-6">
 
-                        {/* Countdown — centro y grande */}
-                        <div className="flex items-center justify-center gap-1.5">
-                            <Clock className="h-6 w-6 text-yellow-300 animate-pulse shrink-0 mr-1" />
-                            {[
-                                { val: timeLeft.h, label: 'horas' },
-                                { val: timeLeft.m, label: 'min' },
-                                { val: timeLeft.s, label: 'seg' },
-                            ].map(({ val, label }, i) => (
-                                <div key={label} className="flex items-center gap-1.5">
-                                    {i > 0 && (
-                                        <span className="font-black text-3xl md:text-4xl text-yellow-300 leading-none -mt-2">:</span>
-                                    )}
-                                    <div className="flex flex-col items-center bg-black/40 border-2 border-yellow-400/60 rounded-xl px-3 md:px-4 py-1.5 shadow-[0_0_16px_rgba(250,204,21,0.3)] min-w-[3.5rem] md:min-w-[4.5rem]">
-                                        <span className="font-mono font-black text-3xl md:text-5xl leading-none tracking-tight text-white drop-shadow-lg">
-                                            {String(val).padStart(2, '0')}
-                                        </span>
-                                        <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-yellow-300/90 mt-1">
-                                            {label}
-                                        </span>
-                                    </div>
+                            {/* Top row: label + code + collapse btn */}
+                            <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 mb-4 relative">
+                                <div className="flex items-center gap-1.5 font-black text-sm md:text-base uppercase tracking-widest">
+                                    <Ticket className="h-5 w-5 animate-pulse" />
+                                    <span>¡Oferta Relámpago!</span>
                                 </div>
-                            ))}
-                        </div>
+                                <span className="text-white/40 hidden md:inline">·</span>
+                                <p className="text-sm md:text-base font-semibold text-center">
+                                    Usá{' '}
+                                    <span className="font-black bg-white text-red-600 px-2.5 py-0.5 rounded-lg mx-0.5 shadow-md tracking-widest text-sm md:text-base">
+                                        {activeCoupon.codigo}
+                                    </span>
+                                    {' '}y obtené{' '}
+                                    <span className="font-black text-yellow-300 text-xl md:text-2xl drop-shadow">
+                                        {activeCoupon.descuento_porcentaje}% OFF
+                                    </span>
+                                </p>
+                                <button
+                                    onClick={() => setBannerMinimized(true)}
+                                    className="absolute right-0 top-0 flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full text-xs font-bold"
+                                >
+                                    <ChevronUp className="h-3.5 w-3.5" /> Minimizar
+                                </button>
+                            </div>
 
-                    </div>
+                            {/* Countdown — ocupa todo el ancho, dígitos enormes */}
+                            <div className="flex items-center justify-center gap-3 md:gap-6 w-full">
+                                <Clock className="h-12 w-12 md:h-20 md:w-20 text-yellow-300 animate-pulse shrink-0" />
+                                <div className="flex items-center gap-3 md:gap-6">
+                                    {[
+                                        { val: timeLeft.h, label: 'horas' },
+                                        { val: timeLeft.m, label: 'min' },
+                                        { val: timeLeft.s, label: 'seg' },
+                                    ].map(({ val, label }, i) => (
+                                        <div key={label} className="flex items-center gap-3 md:gap-6">
+                                            {i > 0 && (
+                                                <span className="font-black text-[4rem] md:text-[7rem] text-yellow-300 leading-none -mt-6 drop-shadow-lg">:</span>
+                                            )}
+                                            <div className="flex flex-col items-center bg-black/40 border-[3px] border-yellow-400/80 rounded-2xl px-5 md:px-10 py-3 md:py-6 shadow-[0_0_40px_rgba(250,204,21,0.6)] min-w-[7rem] md:min-w-[14rem]">
+                                                <span className="font-mono font-black text-[5rem] md:text-[10rem] leading-none tracking-tight text-white drop-shadow-xl">
+                                                    {String(val).padStart(2, '0')}
+                                                </span>
+                                                <span className="text-sm md:text-xl font-bold uppercase tracking-widest text-yellow-300 mt-2">
+                                                    {label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                        </div>
+                    )}
                 </div>
             )}
 
