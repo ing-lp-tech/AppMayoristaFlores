@@ -80,6 +80,7 @@ export const Ventas = () => {
                         producto:productos(nombre, codigo)
                     )
                 `)
+                .is('deleted_at', null)
                 .order('creado_en', { ascending: false });
 
             if (error) throw error;

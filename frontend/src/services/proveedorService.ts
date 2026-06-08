@@ -6,6 +6,7 @@ export const proveedorService = {
         const { data, error } = await supabase
             .from('proveedores')
             .select('*')
+            .is('deleted_at', null)
             .order('nombre', { ascending: true });
 
         if (error) throw error;
@@ -53,7 +54,7 @@ export const proveedorService = {
     async delete(id: string) {
         const { error } = await supabase
             .from('proveedores')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) throw error;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { RolloTela, Insumo, Proveedor } from '../../types';
-import { Plus, Search, Edit, Trash2, AlertCircle, ChevronDown, ChevronRight, Package, Ruler, Scale } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, AlertCircle, ChevronDown, ChevronRight, Package, Ruler, Scale, RefreshCw } from 'lucide-react';
 import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
 import clsx from 'clsx';
 
@@ -91,15 +91,73 @@ export const Inventario = () => {
         }));
     };
 
+    const [isSyncing, setIsSyncing] = useState(false);
+
     useEffect(() => {
         fetchData();
     }, []);
 
+    // Recalcula peso_restante de TODOS los rollos sumando kg_consumido de todos los lotes
+    const syncRollStock = async () => {
+        if (!confirm('¿Recalcular el stock de todos los rollos en base a los lotes de producción?\n\nEsto corregirá los kg restantes de cada rollo.')) return;
+        setIsSyncing(true);
+        try {
+            // 1. Traer todos los lotes con su detalle_rollos
+            const { data: lotes, error: lotesErr } = await supabase
+                .from('lotes_produccion')
+                .select('detalle_rollos')
+                .not('detalle_rollos', 'is', null);
+            if (lotesErr) throw lotesErr;
+
+            // 2. Sumar kg_consumido por rollo_id en todos los lotes
+            const consumidoPorRollo: Record<string, number> = {};
+            for (const lote of (lotes || [])) {
+                for (const r of (lote.detalle_rollos || [])) {
+                    if (r.rollo_id && Number(r.kg_consumido) > 0) {
+                        consumidoPorRollo[r.rollo_id] = (consumidoPorRollo[r.rollo_id] || 0) + Number(r.kg_consumido);
+                    }
+                }
+            }
+
+            // 3. Traer todos los rollos con peso_inicial y metros_iniciales
+            const { data: rolls, error: rollsErr } = await supabase
+                .from('rollos_tela')
+                .select('id, peso_inicial, metros_iniciales');
+            if (rollsErr) throw rollsErr;
+
+            // 4. Actualizar peso_restante (y metros_restantes proporcional) de cada rollo
+            let actualizados = 0;
+            for (const roll of (rolls || [])) {
+                const totalConsumed = consumidoPorRollo[roll.id] || 0;
+                const pesoInicial = Number(roll.peso_inicial || 0);
+                const nuevoPeso = Math.max(0, pesoInicial - totalConsumed);
+
+                // Metros proporcionales al peso restante
+                const pct = pesoInicial > 0 ? nuevoPeso / pesoInicial : 0;
+                const nuevosMetros = Math.max(0, Number(roll.metros_iniciales || 0) * pct);
+
+                const { error: updateErr } = await supabase
+                    .from('rollos_tela')
+                    .update({ peso_restante: nuevoPeso, metros_restantes: nuevosMetros })
+                    .eq('id', roll.id);
+                if (updateErr) console.error('Error actualizando rollo', roll.id, updateErr);
+                else actualizados++;
+            }
+
+            alert(`✅ Stock recalculado. ${actualizados} rollos actualizados.`);
+            fetchData();
+        } catch (err: any) {
+            alert('Error al sincronizar: ' + err.message);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const fetchData = async () => {
         try {
             const [telasRes, insumosRes, provRes, typesRes] = await Promise.all([
-                supabase.from('rollos_tela').select('*, proveedores(nombre)').order('creado_en', { ascending: false }),
-                supabase.from('insumos').select('*').order('creado_en', { ascending: false }),
+                supabase.from('rollos_tela').select('*, proveedores(nombre)').is('deleted_at', null).order('creado_en', { ascending: false }),
+                supabase.from('insumos').select('*').is('deleted_at', null).order('creado_en', { ascending: false }),
                 supabase.from('proveedores').select('*').order('nombre', { ascending: true }),
                 supabase.from('tipos_tela').select('*').order('nombre', { ascending: true })
             ]);
@@ -180,9 +238,9 @@ export const Inventario = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('¿Eliminar ítem? Esto no se puede deshacer.')) return;
+        if (!confirm('¿Mover a la papelera? Podrás restaurarlo desde Papelera.')) return;
         const table = activeTab === 'telas' ? 'rollos_tela' : 'insumos';
-        await supabase.from(table).delete().eq('id', id);
+        await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
         fetchData();
     };
 
@@ -283,13 +341,24 @@ export const Inventario = () => {
                         </button>
                     </div>
                     {activeTab === 'telas' && (
-                        <button
-                            onClick={() => setShowNewTypeModal(true)}
-                            className="bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition-colors shadow-sm"
-                        >
-                            <Plus className="h-5 w-5" />
-                            Nuevo Tipo de Tela
-                        </button>
+                        <>
+                            <button
+                                onClick={syncRollStock}
+                                disabled={isSyncing}
+                                className="bg-amber-50 text-amber-700 border border-amber-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors shadow-sm disabled:opacity-60"
+                                title="Recalcula kg restantes de cada rollo sumando el consumo de todos los lotes"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                                {isSyncing ? 'Calculando...' : 'Recalcular Stock'}
+                            </button>
+                            <button
+                                onClick={() => setShowNewTypeModal(true)}
+                                className="bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition-colors shadow-sm"
+                            >
+                                <Plus className="h-5 w-5" />
+                                Nuevo Tipo de Tela
+                            </button>
+                        </>
                     )}
                     <button
                         onClick={openNew}

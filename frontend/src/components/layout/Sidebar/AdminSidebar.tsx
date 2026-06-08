@@ -14,7 +14,8 @@ import {
     UsersRound,
     DollarSign,
     Ticket,
-    Settings
+    Settings,
+    Trash2
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import clsx from 'clsx';
@@ -101,6 +102,12 @@ export const AdminSidebar = () => {
             to: '/admin/configuracion',
             icon: Settings,
             label: 'Configuración',
+            allowed: ['owner', 'admin']
+        },
+        {
+            to: '/admin/papelera',
+            icon: Trash2,
+            label: 'Papelera',
             allowed: ['owner', 'admin']
         },
     ];

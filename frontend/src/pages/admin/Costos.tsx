@@ -103,8 +103,9 @@ export const Costos = () => {
                         producto:productos(id, nombre, codigo)
                     )
                 `)
+                .is('deleted_at', null)
                 .order('creado_en', { ascending: false }),
-            supabase.from('insumos').select('*')
+            supabase.from('insumos').select('*').is('deleted_at', null)
         ]);
 
         if (lotesRes.error) {
@@ -123,6 +124,7 @@ export const Costos = () => {
         let query = supabase
             .from('calculos_costos')
             .select('*, producto:productos(id, nombre), lote:lotes_produccion(codigo, producto:productos(nombre))')
+            .is('deleted_at', null)
             .order('fecha', { ascending: false });
 
         const { data, error } = await query;
@@ -257,16 +259,19 @@ export const Costos = () => {
     };
 
     const eliminarCalculo = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Avoid triggering row click
-        if (!confirm("¿Está seguro de eliminar este cálculo?")) return;
+        e.stopPropagation();
+        if (!confirm("¿Mover este cálculo a la papelera?")) return;
 
-        const { error } = await supabase.from('calculos_costos').delete().eq('id', id);
+        const { error } = await supabase
+            .from('calculos_costos')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', id);
 
         if (error) {
             alert("Error al eliminar");
             console.error(error);
         } else {
-            alert("Cálculo eliminado");
+            alert("Cálculo enviado a papelera");
             fetchHistorial();
         }
     };

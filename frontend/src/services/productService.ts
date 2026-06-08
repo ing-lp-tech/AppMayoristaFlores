@@ -5,7 +5,8 @@ export const productService = {
     async getProducts(activeOnly = true) {
         let query = supabase
             .from('productos')
-            .select('*, producto_talles(*)');
+            .select('*, producto_talles(*)')
+            .is('deleted_at', null);
 
         if (activeOnly) {
             query = query.eq('visible_publico', true);
@@ -270,7 +271,7 @@ export const productService = {
     async deleteProduct(id: string) {
         const { error } = await supabase
             .from('productos')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) throw error;

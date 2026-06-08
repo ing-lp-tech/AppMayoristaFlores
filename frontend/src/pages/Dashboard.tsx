@@ -119,6 +119,7 @@ export const Dashboard = () => {
                 supabase
                     .from('pedidos')
                     .select('id, codigo_pedido, cliente_nombre, total, estado, creado_en')
+                    .is('deleted_at', null)
                     .order('creado_en', { ascending: false })
                     .limit(5),
 

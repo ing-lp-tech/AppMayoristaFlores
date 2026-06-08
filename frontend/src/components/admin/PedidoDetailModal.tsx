@@ -32,21 +32,16 @@ export const PedidoDetailModal = ({ pedido, onClose, onUpdate }: PedidoDetailMod
     };
 
     const handleDelete = async () => {
-        if (!confirm('¿Estás seguro de eliminar este pedido? Esta acción no se puede deshacer.')) {
+        if (!confirm('¿Mover este pedido a la papelera? Podrás restaurarlo desde Papelera.')) {
             return;
         }
 
         setDeleting(true);
         try {
-            // Delete order items first (foreign key constraint)
-            if (pedido.tipo_cliente_pedido === 'mayorista') {
-                await supabase.from('pedido_items_mayorista').delete().eq('pedido_id', pedido.id);
-            } else {
-                await supabase.from('pedido_items_minorista').delete().eq('pedido_id', pedido.id);
-            }
-
-            // Delete the order
-            const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id);
+            const { error } = await supabase
+                .from('pedidos')
+                .update({ deleted_at: new Date().toISOString() })
+                .eq('id', pedido.id);
             if (error) throw error;
 
             onUpdate();

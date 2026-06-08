@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { DollarSign, ShoppingCart, CreditCard, TrendingDown, PiggyBank, BarChart3 } from 'lucide-react';
+import { DollarSign, ShoppingCart, CreditCard, TrendingDown, PiggyBank, BarChart3, Scissors } from 'lucide-react';
 import { ComprasProveedores } from './finanzas/ComprasProveedores';
 import { PagosProveedores } from './finanzas/PagosProveedores';
 import { GastosOperativos } from './finanzas/GastosOperativos';
 import { AportesRetiros } from './finanzas/AportesRetiros';
 import { ReportesFinancieros } from './finanzas/ReportesFinancieros';
+import { DeudasTaller } from './finanzas/DeudasTaller';
 
-type Tab = 'compras' | 'pagos' | 'gastos' | 'aportes' | 'reportes';
+type Tab = 'compras' | 'pagos' | 'gastos' | 'aportes' | 'reportes' | 'taller';
 
 export const Finanzas = () => {
     const [activeTab, setActiveTab] = useState<Tab>('compras');
@@ -16,6 +17,7 @@ export const Finanzas = () => {
         { id: 'pagos' as Tab, label: 'Pagos', icon: CreditCard },
         { id: 'gastos' as Tab, label: 'Gastos', icon: TrendingDown },
         { id: 'aportes' as Tab, label: 'Aportes/Retiros', icon: PiggyBank },
+        { id: 'taller' as Tab, label: 'Deudas Taller', icon: Scissors },
         { id: 'reportes' as Tab, label: 'Reportes', icon: BarChart3 },
     ];
 
@@ -60,6 +62,7 @@ export const Finanzas = () => {
                 {activeTab === 'pagos' && <PagosProveedores />}
                 {activeTab === 'gastos' && <GastosOperativos />}
                 {activeTab === 'aportes' && <AportesRetiros />}
+                {activeTab === 'taller' && <DeudasTaller />}
                 {activeTab === 'reportes' && <ReportesFinancieros />}
             </div>
         </div>

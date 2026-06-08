@@ -226,6 +226,7 @@ export const comprasService = {
         dueno:duenos(*),
         proveedor:proveedores(*)
       `)
+            .is('deleted_at', null)
             .order('fecha_compra', { ascending: false });
 
         if (duenoId) {
@@ -298,7 +299,7 @@ export const comprasService = {
     async delete(id: string): Promise<void> {
         const { error } = await supabase
             .from('compras_proveedores')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {
@@ -320,6 +321,7 @@ export const pagosService = {
         dueno:duenos(*),
         compra:compras_proveedores(*)
       `)
+            .is('deleted_at', null)
             .order('fecha_pago', { ascending: false });
 
         if (duenoId) {
@@ -358,7 +360,7 @@ export const pagosService = {
     async delete(id: string): Promise<void> {
         const { error } = await supabase
             .from('pagos_proveedores')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {
@@ -376,6 +378,7 @@ export const gastosService = {
         let query = supabase
             .from('gastos_operativos')
             .select(`*, dueno:duenos(*)`)
+            .is('deleted_at', null)
             .order('fecha_gasto', { ascending: false });
 
         if (duenoId) {
@@ -429,7 +432,7 @@ export const gastosService = {
     async delete(id: string): Promise<void> {
         const { error } = await supabase
             .from('gastos_operativos')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {
@@ -447,6 +450,7 @@ export const aportesService = {
         let query = supabase
             .from('aportes_capital')
             .select(`*, dueno:duenos(*)`)
+            .is('deleted_at', null)
             .order('fecha_aporte', { ascending: false });
 
         if (duenoId) {
@@ -479,7 +483,7 @@ export const aportesService = {
     async delete(id: string): Promise<void> {
         const { error } = await supabase
             .from('aportes_capital')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {
@@ -493,6 +497,7 @@ export const retirosService = {
         let query = supabase
             .from('retiros_capital')
             .select(`*, dueno:duenos(*)`)
+            .is('deleted_at', null)
             .order('fecha_retiro', { ascending: false });
 
         if (duenoId) {
@@ -525,7 +530,7 @@ export const retirosService = {
     async delete(id: string): Promise<void> {
         const { error } = await supabase
             .from('retiros_capital')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {

@@ -27,13 +27,16 @@ export const Produccion = () => {
     const [newBatch, setNewBatch] = useState<Partial<LoteProduccion> & { selectedProcessId?: string; productos_ids?: string[] }>({
         codigo: '',
         producto_id: '',
-        productos_ids: [''], // NUEVO: Array de productos seleccionados
+        productos_ids: [''],
         modelo_corte: '',
         detalle_rollos: [{ color: '', kg_consumido: 0 }],
         estado: 'planificado',
         fecha_inicio: new Date().toISOString().split('T')[0],
         propietario: '',
-        selectedProcessId: ''
+        selectedProcessId: '',
+        costo_taller: 0,
+        deuda_taller: 0,
+        observaciones: ''
     });
 
     const [rollos, setRollos] = useState<any[]>([]);
@@ -93,7 +96,7 @@ export const Produccion = () => {
         try {
             const [lotesRes, prodRes, rollosRes, procesosRes] = await Promise.all([
                 supabase.from('lotes_produccion').select(`
-                    *, 
+                    *,
                     producto:productos(nombre, codigo, producto_talles(*)),
                     productos:lote_productos(
                         id,
@@ -102,9 +105,9 @@ export const Produccion = () => {
                         cantidad_producto,
                         producto:productos(id, nombre, codigo, producto_talles(*))
                     )
-                `).order('creado_en', { ascending: false }),
-                supabase.from('productos').select('id, nombre, codigo, proceso_produccion_id, producto_talles(*)').order('nombre', { ascending: true }),
-                supabase.from('rollos_tela').select('*').or('metros_restantes.gt.0.5,peso_restante.gt.0.01'),
+                `).is('deleted_at', null).order('creado_en', { ascending: false }),
+                supabase.from('productos').select('id, nombre, codigo, proceso_produccion_id, producto_talles(*)').is('deleted_at', null).order('nombre', { ascending: true }),
+                supabase.from('rollos_tela').select('*').is('deleted_at', null).or('metros_restantes.gt.0.5,peso_restante.gt.0.01'),
                 supabase.from('procesos_templates').select('*, pasos:pasos_proceso(*)')
             ]);
 
@@ -213,11 +216,45 @@ export const Produccion = () => {
             estado: batch.estado,
             fecha_inicio: batch.fecha_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
             propietario: batch.propietario,
-            selectedProcessId: ''
+            selectedProcessId: '',
+            costo_taller: batch.costo_taller ?? 0,
+            deuda_taller: batch.deuda_taller ?? 0,
+            observaciones: batch.observaciones ?? ''
         });
 
         setSelectedBatch(null);
         setIsModalOpen(true);
+    };
+
+    // Recalcula peso_restante y metros_restantes de un conjunto de rollos
+    // sumando el consumo real de TODOS los lotes en la DB (no usa deltas).
+    const recalcRollos = async (rolloIds: string[]) => {
+        const ids = [...new Set(rolloIds.filter(Boolean))];
+        if (ids.length === 0) return;
+
+        const [{ data: allLotes }, { data: rollsInfo }] = await Promise.all([
+            supabase.from('lotes_produccion').select('detalle_rollos'),
+            supabase.from('rollos_tela').select('id, peso_inicial, metros_iniciales').in('id', ids),
+        ]);
+
+        for (const roll of (rollsInfo || [])) {
+            let totalConsumed = 0;
+            for (const lote of (allLotes || [])) {
+                for (const r of (lote.detalle_rollos || [])) {
+                    if (r.rollo_id === roll.id) totalConsumed += Number(r.kg_consumido || 0);
+                }
+            }
+            const pesoInicial = Number(roll.peso_inicial || 0);
+            const nuevoPeso = Math.max(0, pesoInicial - totalConsumed);
+            const pct = pesoInicial > 0 ? nuevoPeso / pesoInicial : 0;
+            const nuevosMetros = Math.max(0, Number(roll.metros_iniciales || 0) * pct);
+
+            const { error } = await supabase
+                .from('rollos_tela')
+                .update({ peso_restante: nuevoPeso, metros_restantes: nuevosMetros })
+                .eq('id', roll.id);
+            if (error) throw new Error(`Error actualizando rollo ${roll.id}: ${error.message}`);
+        }
     };
 
     const handleSaveBatch = async (e: React.FormEvent) => {
@@ -243,41 +280,22 @@ export const Produccion = () => {
                     propietario: newBatch.propietario,
                     detalle_rollos: newBatch.detalle_rollos,
                     fecha_inicio: newBatch.fecha_inicio,
-                    producto_id: productosValidos[0] // Main product update
+                    producto_id: productosValidos[0],
+                    costo_taller: newBatch.costo_taller ?? 0,
+                    deuda_taller: newBatch.deuda_taller ?? 0,
+                    observaciones: newBatch.observaciones ?? null
                 }).eq('id', editingId);
 
                 if (updateError) throw updateError;
 
-                // 1. Ajustar stock de rollos: comparar kg anteriores vs nuevos
+                // 1. Recalcular stock de todos los rollos afectados (viejos y nuevos)
                 const oldRollos: any[] = existingLote?.detalle_rollos || [];
                 const newRollos: any[] = newBatch.detalle_rollos || [];
-
-                // Agrupar kg por rollo_id para calcular deltas
-                const oldKgByRollo: Record<string, number> = {};
-                oldRollos.forEach((r: any) => {
-                    if (r.rollo_id) oldKgByRollo[r.rollo_id] = (oldKgByRollo[r.rollo_id] || 0) + Number(r.kg_consumido || 0);
-                });
-
-                const newKgByRollo: Record<string, number> = {};
-                newRollos.forEach((r: any) => {
-                    if (r.rollo_id) newKgByRollo[r.rollo_id] = (newKgByRollo[r.rollo_id] || 0) + Number(r.kg_consumido || 0);
-                });
-
-                // Obtener todos los rollo_ids involucrados (viejos y nuevos)
-                const allRolloIds = new Set([...Object.keys(oldKgByRollo), ...Object.keys(newKgByRollo)]);
-
-                for (const rolloId of allRolloIds) {
-                    const kgAnterior = oldKgByRollo[rolloId] || 0;
-                    const kgNuevo = newKgByRollo[rolloId] || 0;
-                    if (kgAnterior !== kgNuevo) {
-                        const { error: adjustErr } = await supabase.rpc('adjust_roll_consumption', {
-                            p_rollo_id: rolloId,
-                            p_kg_anterior: kgAnterior,
-                            p_kg_nuevo: kgNuevo
-                        });
-                        if (adjustErr) console.error('Error ajustando rollo:', rolloId, adjustErr);
-                    }
-                }
+                const affectedIds = [
+                    ...oldRollos.map((r: any) => r.rollo_id),
+                    ...newRollos.map((r: any) => r.rollo_id),
+                ].filter(Boolean);
+                await recalcRollos(affectedIds);
 
                 // 2. Update Products Relations: Delete all and Re-insert
                 await supabase.from('lote_productos').delete().eq('lote_id', editingId);
@@ -349,7 +367,10 @@ export const Produccion = () => {
                 cantidad_total: 0,
                 estado: firstState,
                 proceso_snapshot: snapshot,
-                paso_actual_index: 0
+                paso_actual_index: 0,
+                costo_taller: newBatch.costo_taller ?? 0,
+                deuda_taller: newBatch.deuda_taller ?? 0,
+                observaciones: newBatch.observaciones ?? null
             }]).select().single();
 
             if (batchError) throw batchError;
@@ -370,21 +391,11 @@ export const Produccion = () => {
                 throw loteProductosError;
             }
 
-            // Consume rolls (only on create)
-            const rollsToConsume = newBatch.detalle_rollos
-                ?.filter((r: any) => r.rollo_id && r.kg_consumido > 0)
-                .map((r: any) => ({
-                    rollo_id: r.rollo_id,
-                    kg_consumido: r.kg_consumido
-                }));
-
-            if (rollsToConsume && rollsToConsume.length > 0) {
-                const { error: rpcError } = await supabase.rpc('consume_rolls_for_batch', {
-                    p_batch_id: batchData.id,
-                    p_rolls: rollsToConsume
-                });
-                if (rpcError) console.error('Error consuming rolls:', rpcError);
-            }
+            // Recalcular stock de los rollos usados en este nuevo lote
+            const rollosDelLote = (newBatch.detalle_rollos || [])
+                .map((r: any) => r.rollo_id)
+                .filter(Boolean);
+            await recalcRollos(rollosDelLote);
 
             fetchData();
             setIsModalOpen(false);
@@ -397,7 +408,10 @@ export const Produccion = () => {
                 estado: 'planificado',
                 fecha_inicio: new Date().toISOString().split('T')[0],
                 propietario: '',
-                selectedProcessId: ''
+                selectedProcessId: '',
+                costo_taller: 0,
+                deuda_taller: 0,
+                observaciones: ''
             });
 
         } catch (error: any) {
@@ -672,7 +686,10 @@ export const Produccion = () => {
 
     const handleDelete = async (id: string) => {
         try {
-            const { error } = await supabase.from('lotes_produccion').delete().eq('id', id);
+            const { error } = await supabase
+                .from('lotes_produccion')
+                .update({ deleted_at: new Date().toISOString() })
+                .eq('id', id);
             if (error) throw error;
             fetchData();
         } catch (error: any) {
@@ -899,6 +916,36 @@ export const Produccion = () => {
                                 </p>
                             </div>
 
+                            {/* RESUMEN TALLER */}
+                            {((selectedBatch.costo_taller ?? 0) > 0 || selectedBatch.observaciones) && (
+                                <div className="mt-6 bg-indigo-50 rounded-2xl p-5 border border-indigo-100">
+                                    <h3 className="text-xs font-black uppercase text-indigo-800 tracking-wider mb-3">Datos del Taller</h3>
+                                    <div className="grid grid-cols-3 gap-3 text-center">
+                                        <div className="bg-white rounded-xl p-3 border border-indigo-100">
+                                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Costo Total</span>
+                                            <span className="block text-lg font-black text-indigo-700">${(selectedBatch.costo_taller ?? 0).toLocaleString()}</span>
+                                        </div>
+                                        <div className={`rounded-xl p-3 border ${(selectedBatch.deuda_taller ?? 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-indigo-100'}`}>
+                                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Deuda</span>
+                                            <span className={`block text-lg font-black ${(selectedBatch.deuda_taller ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                ${(selectedBatch.deuda_taller ?? 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white rounded-xl p-3 border border-indigo-100">
+                                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Pagado</span>
+                                            <span className="block text-lg font-black text-emerald-600">
+                                                ${Math.max(0, (selectedBatch.costo_taller ?? 0) - (selectedBatch.deuda_taller ?? 0)).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {selectedBatch.observaciones && (
+                                        <p className="mt-3 text-sm text-indigo-700 bg-white rounded-xl p-3 border border-indigo-100">
+                                            📝 {selectedBatch.observaciones}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             {/* ROLLOS UTILIZADOS (EDITABLE) */}
                             {selectedBatch.detalle_rollos && selectedBatch.detalle_rollos.length > 0 && (
                                 <div className="mt-8 bg-orange-50 rounded-2xl p-6 border border-orange-100 relative group/section">
@@ -1105,16 +1152,32 @@ export const Produccion = () => {
                                                                                         value={cellValue(color, t.id) || ''}
                                                                                         onChange={e => {
                                                                                             const val = parseInt(e.target.value) || 0;
-                                                                                            // UPDATE STATE DEEPLY
                                                                                             const newJson = { ...currentDist };
                                                                                             if (!newJson[color]) newJson[color] = {};
+                                                                                            // Always update only this cell while typing
                                                                                             newJson[color][t.id] = val;
-
-                                                                                            // Update selectedBatch state in memory
                                                                                             const newProds = selectedBatch?.productos?.map((p: any) => {
-                                                                                                if (p.id === lp.id) {
-                                                                                                    return { ...p, tallas_distribucion: newJson };
-                                                                                                }
+                                                                                                if (p.id === lp.id) return { ...p, tallas_distribucion: newJson };
+                                                                                                return p;
+                                                                                            }) || [];
+                                                                                            setSelectedBatch({ ...selectedBatch!, productos: newProds });
+                                                                                        }}
+                                                                                        onBlur={e => {
+                                                                                            const val = parseInt(e.target.value) || 0;
+                                                                                            if (val === 0) return;
+                                                                                            // Auto-fill only if no other cell in the row has a value yet
+                                                                                            const rowHasOtherValues = sizes
+                                                                                                .filter((s: any) => s.id !== t.id)
+                                                                                                .some((s: any) => (currentDist[color]?.[s.id] || 0) > 0);
+                                                                                            if (rowHasOtherValues) return;
+                                                                                            const newJson = { ...currentDist };
+                                                                                            if (!newJson[color]) newJson[color] = {};
+                                                                                            const currentSizeIdx = sizes.findIndex((s: any) => s.id === t.id);
+                                                                                            sizes.slice(currentSizeIdx).forEach((s: any) => {
+                                                                                                newJson[color][s.id] = val;
+                                                                                            });
+                                                                                            const newProds = selectedBatch?.productos?.map((p: any) => {
+                                                                                                if (p.id === lp.id) return { ...p, tallas_distribucion: newJson };
                                                                                                 return p;
                                                                                             }) || [];
                                                                                             setSelectedBatch({ ...selectedBatch!, productos: newProds });
@@ -1431,6 +1494,44 @@ export const Produccion = () => {
 
 
 
+
+                            {/* Datos del Taller */}
+                            <div className="border-t border-gray-100 pt-5 space-y-4">
+                                <h3 className="text-xs font-black text-gray-500 uppercase tracking-wider">Datos del Taller</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Costo Taller ($)</label>
+                                        <FormattedNumberInput
+                                            className="w-full border-gray-200 border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                            value={newBatch.costo_taller ?? 0}
+                                            onChange={val => setNewBatch({ ...newBatch, costo_taller: val })}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Deuda Pendiente ($)</label>
+                                        <FormattedNumberInput
+                                            className={`w-full border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all ${(newBatch.deuda_taller ?? 0) > 0 ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                                            value={newBatch.deuda_taller ?? 0}
+                                            onChange={val => setNewBatch({ ...newBatch, deuda_taller: val })}
+                                            placeholder="0"
+                                        />
+                                        {(newBatch.deuda_taller ?? 0) > 0 && (
+                                            <p className="text-[10px] text-red-500 font-bold mt-1">⚠ Deuda pendiente con el taller</p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Observaciones</label>
+                                    <textarea
+                                        rows={2}
+                                        className="w-full border-gray-200 border-2 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none text-sm"
+                                        value={newBatch.observaciones ?? ''}
+                                        onChange={e => setNewBatch({ ...newBatch, observaciones: e.target.value })}
+                                        placeholder="Notas relevantes del lote..."
+                                    />
+                                </div>
+                            </div>
 
                             <div className="flex justify-end gap-3 mt-8">
                                 <button type="button" onClick={() => { setIsModalOpen(false); setIsEditing(false); setEditingId(null); }} className="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>

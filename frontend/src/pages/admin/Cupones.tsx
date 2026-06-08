@@ -19,6 +19,7 @@ export default function Cupones() {
             const { data, error } = await supabase
                 .from('cupones_descuento')
                 .select('*')
+                .is('deleted_at', null)
                 .order('creado_en', { ascending: false });
 
             if (error) throw error;
@@ -72,11 +73,11 @@ export default function Cupones() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('¿Estás seguro de eliminar este cupón?')) return;
+        if (!confirm('¿Mover este cupón a la papelera?')) return;
         try {
             const { error } = await supabase
                 .from('cupones_descuento')
-                .delete()
+                .update({ deleted_at: new Date().toISOString() })
                 .eq('id', id);
 
             if (error) throw error;

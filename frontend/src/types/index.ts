@@ -249,12 +249,15 @@ export interface LoteProduccion {
     modelo_corte?: string;
     cantidad_total: number;
     cantidad_real?: number;
-    estado: 'planificado' | 'corte' | 'taller' | 'terminado' | string; // Allow dynamic states
+    estado: 'planificado' | 'corte' | 'taller' | 'terminado' | string;
     progreso_porcentaje: number;
     proceso_snapshot?: any; // JSONB
     paso_actual_index?: number;
     fecha_inicio?: string;
     fecha_fin?: string;
+    costo_taller?: number;
+    deuda_taller?: number;
+    observaciones?: string;
     creado_en: string;
     // Joined fields
     propietario?: string;
