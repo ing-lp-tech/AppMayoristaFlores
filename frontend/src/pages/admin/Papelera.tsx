@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Trash2, RotateCcw, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
