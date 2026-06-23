@@ -100,7 +100,7 @@ export const Login = () => {
                         </button>
                     </div>
 
-                    {!import.meta.env.VITE_SUPABASE_URL.includes('placeholder') && (
+                    {import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder') && (
                         <div className="mt-6 text-center space-y-2">
                             <div className="text-xs text-green-600 font-medium">✓ Servidor Operativo</div>
                             <button
