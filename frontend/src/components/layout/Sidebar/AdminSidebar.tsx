@@ -19,103 +19,39 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import clsx from 'clsx';
-import type { UserRole } from '../../../types';
+import { MODULOS } from '../../../config/modules';
+import { puedeVerModulo } from '../../../lib/permissions';
 
 export const AdminSidebar = () => {
     const { signOut, user } = useAuthStore();
 
-    // Define items with required roles
-    const allNavItems = [
-        {
-            to: '/admin/dashboard',
-            icon: LayoutDashboard,
-            label: 'Dashboard',
-            allowed: ['owner', 'admin', 'ventas', 'produccion', 'inventario']
-        },
-        {
-            to: '/admin/productos',
-            icon: Package,
-            label: 'Productos',
-            allowed: ['owner', 'admin', 'ventas', 'produccion']
-        },
-        {
-            to: '/admin/produccion',
-            icon: Factory,
-            label: 'Producción',
-            allowed: ['owner', 'admin', 'produccion']
-        },
-        {
-            to: '/admin/inventario',
-            icon: Layers,
-            label: 'Inventario Tel/Ins',
-            allowed: ['owner', 'admin', 'inventario', 'produccion']
-        },
-        {
-            to: '/admin/stock',
-            icon: Box,
-            label: 'Stock Productos',
-            allowed: ['owner', 'admin', 'ventas', 'produccion', 'repositor']
-        },
-        {
-            to: '/admin/costos',
-            icon: FileText,
-            label: 'Costos',
-            allowed: ['owner', 'admin', 'contador']
-        },
-        {
-            to: '/admin/ventas',
-            icon: ShoppingCart,
-            label: 'Ventas',
-            allowed: ['owner', 'admin', 'ventas']
-        },
-        {
-            to: '/admin/proveedores',
-            icon: Users,
-            label: 'Proveedores',
-            allowed: ['owner', 'admin', 'inventario']
-        },
-        {
-            to: '/admin/duenos',
-            icon: UsersRound,
-            label: 'Dueños/Socios',
-            allowed: ['owner', 'admin']
-        },
-        {
-            to: '/admin/finanzas',
-            icon: DollarSign,
-            label: 'Finanzas',
-            allowed: ['owner', 'admin']
-        },
-        {
-            to: '/admin/equipo',
-            icon: Shield,
-            label: 'Equipo',
-            allowed: ['owner', 'admin']
-        },
-        {
-            to: '/admin/cupones',
-            icon: Ticket,
-            label: 'Cupones',
-            allowed: ['owner', 'admin']
-        },
-        {
-            to: '/admin/configuracion',
-            icon: Settings,
-            label: 'Configuración',
-            allowed: ['owner', 'admin']
-        },
-        {
-            to: '/admin/papelera',
-            icon: Trash2,
-            label: 'Papelera',
-            allowed: ['owner', 'admin']
-        },
-    ];
+    // Iconos por modulo (la lista de modulos/roles vive en config/modules.ts,
+    // fuente unica que tambien usan las rutas y el editor de permisos de Equipo)
+    const iconByModuleKey: Record<string, typeof LayoutDashboard> = {
+        dashboard: LayoutDashboard,
+        productos: Package,
+        produccion: Factory,
+        inventario: Layers,
+        stock: Box,
+        costos: FileText,
+        ventas: ShoppingCart,
+        proveedores: Users,
+        duenos: UsersRound,
+        finanzas: DollarSign,
+        equipo: Shield,
+        cupones: Ticket,
+        configuracion: Settings,
+        papelera: Trash2,
+    };
 
-    const visibleItems = allNavItems.filter(item =>
-        // If no user, hide all. If user has any of the allowed roles, show.
-        user?.roles?.some((userRole: UserRole) => item.allowed.includes(userRole))
-    );
+    const allNavItems = MODULOS.map(modulo => ({
+        to: `/admin/${modulo.key}`,
+        icon: iconByModuleKey[modulo.key] ?? LayoutDashboard,
+        label: modulo.label,
+        key: modulo.key,
+    }));
+
+    const visibleItems = allNavItems.filter(item => puedeVerModulo(user, item.key));
 
     // Store link helper
     const StoreLink = () => (

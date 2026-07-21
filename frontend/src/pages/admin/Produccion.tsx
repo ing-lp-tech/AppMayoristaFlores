@@ -6,9 +6,12 @@ import type { LoteProduccion, Producto } from '../../types';
 import { Plus, CheckCircle, Package, Trash2, X, Settings, Scissors } from 'lucide-react';
 import clsx from 'clsx';
 import { FormattedNumberInput } from '../../components/ui/FormattedNumberInput';
+import { usePermiso } from '../../hooks/usePermiso';
 
 export const Produccion = () => {
     const navigate = useNavigate();
+    const puedeEditar = usePermiso('produccion', 'editar');
+    const puedeEliminar = usePermiso('produccion', 'eliminar');
     const [lotes, setLotes] = useState<LoteProduccion[]>([]);
     const [productos, setProductos] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(true);
@@ -719,12 +722,14 @@ export const Produccion = () => {
                     >
                         <Settings className="h-5 w-5" /> Gestionar Procesos
                     </button>
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 shadow-sm transition-all active:scale-95 font-medium"
-                    >
-                        <Plus className="h-5 w-5" /> Iniciar Lote
-                    </button>
+                    {puedeEditar && (
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 shadow-sm transition-all active:scale-95 font-medium"
+                        >
+                            <Plus className="h-5 w-5" /> Iniciar Lote
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -792,18 +797,20 @@ export const Produccion = () => {
 
                             <div className="flex justify-between items-center text-xs text-gray-400 italic">
                                 <span>Click para gestionar etapas</span>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (confirm("¿Estás seguro de eliminar este lote? Se devolverá el stock de tela si es posible (no implementado en reverso automatico aún).")) {
-                                            handleDelete(lote.id);
-                                        }
-                                    }}
-                                    className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors"
-                                    title="Eliminar Lote"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
+                                {puedeEliminar && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (confirm("¿Estás seguro de eliminar este lote? Se devolverá el stock de tela si es posible (no implementado en reverso automatico aún).")) {
+                                                handleDelete(lote.id);
+                                            }
+                                        }}
+                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors"
+                                        title="Eliminar Lote"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -823,12 +830,14 @@ export const Produccion = () => {
                                 <p className="text-sm text-gray-500 font-bold">{selectedBatch.producto?.nombre} - <span className="text-indigo-600">{selectedBatch.codigo}</span></p>
                             </div>
                             <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleEditBatch(selectedBatch)}
-                                    className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors"
-                                >
-                                    Editar Datos
-                                </button>
+                                {puedeEditar && (
+                                    <button
+                                        onClick={() => handleEditBatch(selectedBatch)}
+                                        className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors"
+                                    >
+                                        Editar Datos
+                                    </button>
+                                )}
                                 <button onClick={() => setSelectedBatch(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
                                     <X className="h-6 w-6" />
                                 </button>

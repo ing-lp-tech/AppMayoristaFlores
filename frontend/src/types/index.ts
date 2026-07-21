@@ -4,6 +4,10 @@
 
 export type UserRole = 'owner' | 'admin' | 'produccion' | 'ventas' | 'inventario' | 'contador' | 'repositor' | 'cortador' | 'doblador' | 'cliente';
 
+// Acciones granulares que se pueden habilitar/deshabilitar por modulo y por usuario
+export type Accion = 'ver' | 'editar' | 'eliminar';
+export type ModuloPermiso = Partial<Record<Accion, boolean>>;
+
 export interface UsuarioInterno {
     id: string;
     email: string;
@@ -17,6 +21,9 @@ export interface UsuarioInterno {
     creado_en: string;
     ultimo_login?: string;
     tenant_id?: string;
+    // Permisos granulares por modulo, ej: { produccion: { ver: true, editar: true, eliminar: false } }
+    // Si un modulo no tiene entrada aca, se usa el acceso por rol (legacy).
+    permisos?: Record<string, ModuloPermiso>;
 }
 
 export interface CuponDescuento {

@@ -23,6 +23,7 @@ import { Finanzas } from "./pages/admin/Finanzas";
 import Cupones from "./pages/admin/Cupones";
 import ConfiguracionSistema from "./pages/admin/ConfiguracionSistema";
 import { Papelera } from "./pages/admin/Papelera";
+import { ModuleGuard } from "./components/auth/ModuleGuard";
 
 function App() {
   const { session, loading, setLoading, setSession, setUser } = useAuthStore();
@@ -126,21 +127,21 @@ function App() {
         >
           <Route path="/admin" element={<Layout />}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="productos" element={<AdminProducts />} />
-            <Route path="produccion" element={<Produccion />} />
-            <Route path="procesos" element={<ProcessManager />} />
-            <Route path="inventario" element={<Inventario />} />
-            <Route path="stock" element={<Stock />} />
-            <Route path="ventas" element={<Ventas />} />
-            <Route path="proveedores" element={<Proveedores />} />
-            <Route path="costos" element={<Costos />} />
-            <Route path="duenos" element={<Duenos />} />
-            <Route path="finanzas" element={<Finanzas />} />
-            <Route path="equipo" element={<Equipo />} />
-            <Route path="cupones" element={<Cupones />} />
-            <Route path="configuracion" element={<ConfiguracionSistema />} />
-            <Route path="papelera" element={<Papelera />} />
+            <Route path="dashboard" element={<ModuleGuard moduloKey="dashboard"><Dashboard /></ModuleGuard>} />
+            <Route path="productos" element={<ModuleGuard moduloKey="productos"><AdminProducts /></ModuleGuard>} />
+            <Route path="produccion" element={<ModuleGuard moduloKey="produccion"><Produccion /></ModuleGuard>} />
+            <Route path="procesos" element={<ModuleGuard moduloKey="produccion"><ProcessManager /></ModuleGuard>} />
+            <Route path="inventario" element={<ModuleGuard moduloKey="inventario"><Inventario /></ModuleGuard>} />
+            <Route path="stock" element={<ModuleGuard moduloKey="stock"><Stock /></ModuleGuard>} />
+            <Route path="ventas" element={<ModuleGuard moduloKey="ventas"><Ventas /></ModuleGuard>} />
+            <Route path="proveedores" element={<ModuleGuard moduloKey="proveedores"><Proveedores /></ModuleGuard>} />
+            <Route path="costos" element={<ModuleGuard moduloKey="costos"><Costos /></ModuleGuard>} />
+            <Route path="duenos" element={<ModuleGuard moduloKey="duenos"><Duenos /></ModuleGuard>} />
+            <Route path="finanzas" element={<ModuleGuard moduloKey="finanzas"><Finanzas /></ModuleGuard>} />
+            <Route path="equipo" element={<ModuleGuard moduloKey="equipo"><Equipo /></ModuleGuard>} />
+            <Route path="cupones" element={<ModuleGuard moduloKey="cupones"><Cupones /></ModuleGuard>} />
+            <Route path="configuracion" element={<ModuleGuard moduloKey="configuracion"><ConfiguracionSistema /></ModuleGuard>} />
+            <Route path="papelera" element={<ModuleGuard moduloKey="papelera"><Papelera /></ModuleGuard>} />
           </Route>
         </Route>
 
